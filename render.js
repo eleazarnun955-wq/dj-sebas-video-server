@@ -72,7 +72,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       buffer: req.file.buffer,
       mimetype: req.file.mimetype
     });
-    const publicBase = String(process.env.RENDER_EXTERNAL_URL || `https://${req.get("host")}`).replace(/\\/$/, "");
+    const publicBase = String(process.env.RENDER_EXTERNAL_URL || `https://${req.get("host")}`).replace(/\/$/, "");
     const imageUrl = `${publicBase}/api/hf-image/${imageId}`;
     const cleanupTimer = setTimeout(() => pendingImages.delete(imageId), 10 * 60 * 1000);
     cleanupTimer.unref?.();
