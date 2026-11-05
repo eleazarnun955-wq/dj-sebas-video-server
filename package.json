@@ -1,14 +1,14 @@
-
 {
   "name": "dj-sebas-video-server",
   "version": "1.0.0",
   "type": "module",
-  "main": "server.js",
+  "main": "render.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node render.js"
   },
   "dependencies": {
     "express": "^4.21.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "multer": "^2.0.2"
   }
 }
