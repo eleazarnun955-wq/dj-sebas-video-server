@@ -48,8 +48,8 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     const client = new InferenceClient(process.env.HF_TOKEN);
     const video = await client.imageToVideo({
       inputs: new Blob([req.file.buffer], { type: req.file.mimetype }),
-      model: process.env.HF_VIDEO_MODEL || "Wan-AI/Wan2.2-I2V-A14B",
-      provider: "auto",
+      model: process.env.HF_VIDEO_MODEL || "Wan-AI/Wan2.1-I2V-14B-720P",
+      provider: process.env.HF_PROVIDER || "fal-ai",
       prompt
     });
     const bytes = Buffer.from(await video.arrayBuffer());
