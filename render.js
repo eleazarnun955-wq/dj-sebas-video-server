@@ -95,7 +95,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       "UniPCMultistep",
       3.0,        // flow_shift
       16,         // frame_multiplier / FPS
-      false,      // safe_mode
+      true,       // safe_mode: pide margen adicional a ZeroGPU cuando está ocupado
       true        // show result video
     ];
 
