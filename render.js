@@ -3,7 +3,7 @@ import cors from "cors";
 import multer from "multer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -133,6 +133,43 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no");
 
     const stream = Readable.fromWeb(eventResponse.body);
+    // Inspecciona eventos SSE sin alterar el flujo que recibe el navegador.
+    // Gradio puede enviar event:error con data:null; registramos el evento real
+    // para distinguir errores de GPU, cola, validación o cambios del Space.
+    let sseBuffer = "";
+    const sseDiagnostics = new Transform({
+      transform(chunk, _encoding, callback) {
+        const textChunk = chunk.toString("utf8");
+        sseBuffer += textChunk;
+        const frames = sseBuffer.split(/\\r?\\n\\r?\\n/);
+        sseBuffer = frames.pop() || "";
+        for (const frame of frames) {
+          const eventName = frame.match(/^event:\\s*(.+)$/m)?.[1]?.trim() || "message";
+          const dataLines = frame.split(/\\r?\\n/).filter(line => line.startsWith("data:"));
+          const payload = dataLines.map(line => line.slice(5).trim()).join("\\n");
+          if (eventName === "error") {
+            console.error("HF_SPACE_SSE_ERROR", JSON.stringify({
+              eventId: job.event_id,
+              payload: payload || "(sin data)",
+              frame: frame.slice(0, 2000)
+            }));
+          }
+        }
+        callback(null, chunk);
+      },
+      flush(callback) {
+        if (sseBuffer.trim()) {
+          const eventName = sseBuffer.match(/^event:\\s*(.+)$/m)?.[1]?.trim() || "message";
+          if (eventName === "error") {
+            console.error("HF_SPACE_SSE_ERROR_FINAL", JSON.stringify({
+              eventId: job.event_id,
+              frame: sseBuffer.slice(0, 2000)
+            }));
+          }
+        }
+        callback();
+      }
+    });
     stream.on("error", (error) => {
       console.error("Error en el flujo de video:", error);
       if (!res.headersSent) res.status(502);
@@ -141,7 +178,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     res.on("close", () => {
       if (!stream.destroyed) stream.destroy();
     });
-    stream.pipe(res);
+    stream.pipe(sseDiagnostics).pipe(res);
   } catch (error) {
     const detail = String(error?.message || error);
     console.error("Wan 2.2 public Space error:", detail);
