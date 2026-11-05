@@ -48,12 +48,9 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
   const prompt = `${movement}. Estilo musical: ${style}. Mantener la apariencia, rostro y ropa de la persona de la fotografía. Cámara estable, movimiento natural, buena iluminación.`;
 
   try {
-    // Hugging Face Space Gradio upload: the public GPU Space does not require an API token.
     const hfToken = String(process.env.HF_TOKEN || "").trim();
     if (!hfToken) throw new Error("Falta HF_TOKEN en los secretos de Render.");
 
-    // ZeroGPU Spaces necesitan autenticar la llamada para aplicar la cuota
-    // de la cuenta; sin Bearer token pueden rechazarla con event:error data:null.
     const hfHeaders = { Authorization: `Bearer ${hfToken}` };
     const imageForm = new FormData();
     const imageBlob = new Blob([req.file.buffer], { type: req.file.mimetype });
@@ -86,21 +83,20 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       meta: { _type: "gradio.FileData" }
     };
 
-    // API del Space zerogpu-aoti/wan2-2-fp8da-aoti-faster.
-    // generate_video(input_image, prompt, steps, negative_prompt, duration_seconds,
-    //                guidance_scale, guidance_scale_2, seed, randomize_seed)
-    // Orden VERIFICADO contra ui_inputs del app.py público del Space:
-    // input_image, prompt, negative_prompt, duration_seconds,
-    // guidance_scale, guidance_scale_2, steps, seed, randomize_seed.
-    // Importante: Gradio exige exactamente este orden de componentes.
+    // Orden exacto comprobado en app.py: ui_inputs = [
+    // input_image_component, prompt_input, steps_slider,
+    // negative_prompt_input, duration_seconds_input,
+    // guidance_scale_input, guidance_scale_2_input, seed_input,
+    // randomize_seed_checkbox
+    // ]
     const data = [
       inputImage,
       prompt,
+      4,
       "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走",
       2.5,
       1,
-      3.5,
-      4,
+      1,
       42,
       true
     ];
@@ -122,8 +118,6 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       throw new Error("El motor gratuito no devolvió el identificador de generación.");
     }
 
-    // Stream Gradio's Server-Sent Events through Render. The browser reads the
-    // completed event and then plays the MP4 from the public Space.
     const eventResponse = await fetch(
       `${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}/${job.event_id}`,
       { headers: { ...hfHeaders, Accept: "text/event-stream" }, signal: req.signal }
@@ -139,14 +133,10 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no");
 
     const stream = Readable.fromWeb(eventResponse.body);
-    // Inspecciona eventos SSE sin alterar el flujo que recibe el navegador.
-    // Gradio puede enviar event:error con data:null; registramos el evento real
-    // para distinguir errores de GPU, cola, validación o cambios del Space.
     let sseBuffer = "";
     const sseDiagnostics = new Transform({
       transform(chunk, _encoding, callback) {
-        const textChunk = chunk.toString("utf8");
-        sseBuffer += textChunk;
+        sseBuffer += chunk.toString("utf8");
         const frames = sseBuffer.split(/\r?\n\r?\n/);
         sseBuffer = frames.pop() || "";
         for (const frame of frames) {
