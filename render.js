@@ -68,12 +68,37 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       duration, imageBytes: req.file.size, imageType: req.file.mimetype
     }));
 
-    const apiResponse = await fetch(PIXELSTER_API, {
+    const requestBody = JSON.stringify({ prompt, ratio: "9:16", duration, imageBase64 });
+    const requestOptions = {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ prompt, ratio: "9:16", duration, imageBase64 }),
-      signal: AbortSignal.timeout(180000)
-    });
+      body: requestBody,
+      signal: AbortSignal.timeout(180000),
+      redirect: "manual"
+    };
+
+    let apiResponse = await fetch(PIXELSTER_API, requestOptions);
+    console.log("PIXELSTER_HTTP_RESPONSE", JSON.stringify({
+      status: apiResponse.status,
+      url: apiResponse.url,
+      redirected: apiResponse.redirected,
+      location: apiResponse.headers.get("location"),
+      allow: apiResponse.headers.get("allow")
+    }));
+
+    // Preserve POST and its JSON body when the provider redirects the API route.
+    if ([301, 302, 303, 307, 308].includes(apiResponse.status)) {
+      const redirectTo = apiResponse.headers.get("location");
+      if (!redirectTo) throw new Error(`PixelSter redirigió con HTTP ${apiResponse.status} pero no indicó destino.`);
+      const redirectUrl = new URL(redirectTo, PIXELSTER_API).toString();
+      apiResponse = await fetch(redirectUrl, requestOptions);
+      console.log("PIXELSTER_REDIRECT_RESPONSE", JSON.stringify({
+        status: apiResponse.status,
+        url: redirectUrl,
+        location: apiResponse.headers.get("location"),
+        allow: apiResponse.headers.get("allow")
+      }));
+    }
 
     const raw = await apiResponse.text();
     let result;
