@@ -49,12 +49,19 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
 
   try {
     // Hugging Face Space Gradio upload: the public GPU Space does not require an API token.
+    const hfToken = String(process.env.HF_TOKEN || "").trim();
+    if (!hfToken) throw new Error("Falta HF_TOKEN en los secretos de Render.");
+
+    // ZeroGPU Spaces necesitan autenticar la llamada para aplicar la cuota
+    // de la cuenta; sin Bearer token pueden rechazarla con event:error data:null.
+    const hfHeaders = { Authorization: `Bearer ${hfToken}` };
     const imageForm = new FormData();
     const imageBlob = new Blob([req.file.buffer], { type: req.file.mimetype });
     imageForm.append("files", imageBlob, req.file.originalname || "foto.jpg");
 
     const uploadResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/upload`, {
       method: "POST",
+      headers: hfHeaders,
       body: imageForm,
       signal: AbortSignal.timeout(60000)
     });
@@ -99,7 +106,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
 
     const jobResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...hfHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({ data }),
       signal: AbortSignal.timeout(60000)
     });
@@ -118,7 +125,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     // completed event and then plays the MP4 from the public Space.
     const eventResponse = await fetch(
       `${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}/${job.event_id}`,
-      { headers: { Accept: "text/event-stream" }, signal: req.signal }
+      { headers: { ...hfHeaders, Accept: "text/event-stream" }, signal: req.signal }
     );
 
     if (!eventResponse.ok || !eventResponse.body) {
