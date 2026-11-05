@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090b16"><title>DJ SEBAS AI VIDEO</title>
+<style>
+:root{color-scheme:dark;--bg:#090b16;--panel:#14182a;--line:#292f49;--gold:#f4c45e;--muted:#aab1c8}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#222344 0,#090b16 55%);font-family:system-ui,Arial;color:#f7f7fb;min-height:100vh}
+main{width:min(720px,100%);margin:auto;padding:28px 18px 50px}.brand{text-align:center;margin:16px 0 28px}.logo{display:inline-grid;place-items:center;width:66px;height:66px;border-radius:20px;background:linear-gradient(135deg,#f8d77b,#a56b18);color:#111;font-size:27px;font-weight:900;box-shadow:0 8px 36px #d59b3540}.brand h1{font-size:clamp(25px,6vw,38px);letter-spacing:1px;margin:12px 0 4px}.brand p{margin:0;color:var(--muted)}.panel{background:#14182aeb;border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 18px 50px #0005}.status{display:flex;align-items:center;gap:9px;color:#c5cbe0;font-size:13px;margin-bottom:20px}.dot{width:9px;height:9px;background:#54d69b;border-radius:50%;box-shadow:0 0 12px #54d69b}.drop{display:block;border:1.5px dashed #59617e;border-radius:17px;padding:25px 15px;text-align:center;background:#0c1020;cursor:pointer}.drop strong{display:block;margin:9px 0 4px}.drop small{color:var(--muted)}input[type=file]{display:none}.preview{display:none;width:100%;max-height:360px;object-fit:contain;margin-top:15px;border-radius:12px;background:#070914}label.field{display:block;margin:20px 0 8px;font-weight:650}textarea,select{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:#0c1020;color:#fff;font:inherit}textarea{min-height:86px;resize:vertical}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.hint{color:var(--muted);font-size:12px;margin-top:8px}.go{width:100%;margin-top:22px;padding:15px;border:0;border-radius:13px;background:linear-gradient(90deg,#f7d47d,#d89a36);color:#16120a;font-size:16px;font-weight:850;cursor:pointer}.go:disabled{opacity:.55;cursor:wait}.msg{margin-top:15px;padding:13px;border-radius:12px;background:#0b1020;color:#d9def1;display:none;line-height:1.5}.foot{text-align:center;color:#777f9b;font-size:12px;margin-top:18px}@media(max-width:520px){.panel{padding:17px}.grid{grid-template-columns:1fr}}
+</style></head>
+<body><main>
+<header class="brand"><div class="logo">DS</div><h1>DJ SEBAS AI VIDEO</h1><p>Convierte tus fotografías en ideas para videoclips</p></header>
+<section class="panel">
+<div class="status"><span class="dot"></span><span id="server">Comprobando conexión con el servidor…</span></div>
+<form id="form">
+<label class="drop" for="image"><div style="font-size:32px">＋</div><strong>Selecciona tu fotografía</strong><small>JPG, PNG o WEBP · máximo 15 MB</small><img id="preview" class="preview" alt="Vista previa"></label>
+<input id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp" required>
+<label class="field" for="prompt">¿Cómo quieres que se mueva?</label>
+<textarea id="prompt" name="prompt" placeholder="Ejemplo: la persona bailando cumbia, movimientos naturales, luces de escenario y ambiente de concierto."></textarea>
+<div class="grid"><div><label class="field" for="duration">Duración deseada</label><select id="duration"><option value="5">5 segundos (prueba)</option><option value="10">10 segundos</option><option value="30">30 segundos</option><option value="60">1 minuto (por escenas)</option><option value="180">3 minutos (por escenas)</option><option value="300">5 minutos (por escenas)</option></select></div><div><label class="field" for="style">Estilo</label><select id="style"><option>Cumbia</option><option>Electrónica</option><option>Regional mexicano</option><option>Reggaetón</option><option>Libre</option></select></div></div>
+<p class="hint">Los videoclips largos se tendrán que generar por escenas y unir al final.</p>
+<button class="go" id="submit" type="submit">PREPARAR MI VIDEO</button><div class="msg" id="message" role="status"></div>
+</form></section><div class="foot">DJ SEBAS AI VIDEO · Proyecto personal</div></main>
+<script>
+const $=id=>document.getElementById(id);let selected=null;
+$("image").addEventListener("change",e=>{selected=e.target.files[0];if(!selected)return;if(selected.size>15*1024*1024){$("message").style.display="block";$("message").textContent="La imagen supera 15 MB. Elige una más pequeña.";e.target.value="";selected=null;return;}const url=URL.createObjectURL(selected);$("preview").src=url;$("preview").style.display="block";});
+fetch("/api/status").then(r=>r.json()).then(d=>{$("server").textContent=d.status==="online"?"Servidor conectado · motor de video "+(d.videoEngineConfigured?"pendiente de verificar":"pendiente de conectar"):"Servidor no disponible";}).catch(()=>$("server").textContent="No se pudo comprobar el servidor");
+$("form").addEventListener("submit",async e=>{e.preventDefault();if(!selected)return;const btn=$("submit"),msg=$("message");btn.disabled=true;btn.textContent="ENVIANDO…";msg.style.display="block";msg.textContent="Enviando la fotografía al servidor…";const data=new FormData();data.append("image",selected);data.append("prompt",$("prompt").value);data.append("duration",$("duration").value);data.append("style",$("style").value);try{const r=await fetch("/api/generate",{method:"POST",body:data});const out=await r.json();msg.textContent=out.error||out.message||"Solicitud recibida."; }catch(err){msg.textContent="No se pudo conectar. Intenta nuevamente."; }finally{btn.disabled=false;btn.textContent="PREPARAR MI VIDEO";}});
+</script></body></html>
