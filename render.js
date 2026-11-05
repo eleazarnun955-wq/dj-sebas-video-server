@@ -82,14 +82,17 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     // API del Space zerogpu-aoti/wan2-2-fp8da-aoti-faster.
     // generate_video(input_image, prompt, steps, negative_prompt, duration_seconds,
     //                guidance_scale, guidance_scale_2, seed, randomize_seed)
+    // El orden debe coincidir exactamente con ui_inputs de app.py:
+    // input_image, prompt, negative_prompt, duration_seconds,
+    // guidance_scale, guidance_scale_2, steps, seed, randomize_seed.
     const data = [
       inputImage,
       prompt,
-      4,
       "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走",
       2.5,
       1,
       1,
+      4,
       42,
       true
     ];
