@@ -24,6 +24,28 @@ const upload = multer({
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+
+// Lightweight request diagnostics: never log image contents or secrets.
+app.use((req, res, next) => {
+  const started = Date.now();
+  console.log("HTTP_IN", JSON.stringify({
+    method: req.method,
+    path: req.path,
+    contentLength: req.headers["content-length"] || null,
+    contentType: req.headers["content-type"] || null,
+    origin: req.headers.origin || null
+  }));
+  res.on("finish", () => console.log("HTTP_OUT", JSON.stringify({
+    method: req.method, path: req.path, status: res.statusCode,
+    durationMs: Date.now() - started
+  })));
+  res.on("close", () => {
+    if (!res.writableFinished) console.warn("HTTP_CLOSED_EARLY", JSON.stringify({
+      method: req.method, path: req.path, durationMs: Date.now() - started
+    }));
+  });
+  next();
+});
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/status", (_req, res) => {
@@ -50,6 +72,11 @@ app.get("/api/hf-image/:id", (req, res) => {
 });
 
 app.post("/api/generate", upload.single("image"), async (req, res) => {
+  console.log("GENERATE_ROUTE_ENTER", JSON.stringify({
+    hasFile: Boolean(req.file),
+    fileSize: req.file?.size || 0,
+    fileType: req.file?.mimetype || null
+  }));
   if (!req.file) {
     return res.status(400).json({ error: "Selecciona una fotografía primero." });
   }
@@ -109,6 +136,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       true
     ];
 
+    console.log("HF_JOB_SUBMIT", JSON.stringify({ space: HF_SPACE_BASE, fn: HF_FN_NAME }));
     const jobResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}`, {
       method: "POST",
       headers: { ...hfHeaders, "Content-Type": "application/json" },
