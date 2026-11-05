@@ -209,22 +209,23 @@ app.use((err, _req, res, _next) => {
   res.status(400).json({ error: err.message || "No se pudo procesar la solicitud." });
 });
 
-// Inspect the live Gradio Space API on startup; this reveals the exact route exposed by its current build.
+// Compare the current Space host with the newer public Wan777 Space before switching production traffic.
 (async () => {
-  for (const route of ["/gradio_api/openapi.json", "/config", "/"]){
-    try {
-      const response = await fetch(HF_SPACE_BASE + route, { headers: { Authorization: `Bearer ${String(process.env.HF_TOKEN || "").trim()}` }, signal: AbortSignal.timeout(20000) });
-      const body = await response.text();
-      let detail = body.slice(0, 1200);
+  for (const base of ["https://kulkas2pintu-wan555.hf.space", "https://kulkas2pintu-wan777.hf.space"]) {
+    for (const route of ["/gradio_api/openapi.json", "/config", "/"]) {
       try {
-        const parsed = JSON.parse(body);
-        if (route.includes("openapi")) detail = JSON.stringify({paths:Object.keys(parsed.paths || {})});
-        else if (route === "/config") detail = JSON.stringify({api_prefix:parsed.api_prefix, components:(parsed.components || []).length, dependencies:(parsed.dependencies || []).map(d => ({id:d.id, api_name:d.api_name, inputs:d.inputs?.length}))});
-      } catch {}
-      console.log("HF_SPACE_PROBE", route, response.status, detail);
-    } catch (error) { console.error("HF_SPACE_PROBE_ERROR", route, error.message); }
+        const response = await fetch(base + route, { headers: { Authorization: `Bearer ${String(process.env.HF_TOKEN || "").trim()}` }, signal: AbortSignal.timeout(20000) });
+        const body = await response.text();
+        let detail = body.slice(0, 500);
+        try {
+          const parsed = JSON.parse(body);
+          if (route.includes("openapi")) detail = JSON.stringify({paths:Object.keys(parsed.paths || {})});
+          else if (route === "/config") detail = JSON.stringify({api_prefix:parsed.api_prefix, components:(parsed.components || []).length, dependencies:(parsed.dependencies || []).map(d => ({id:d.id, api_name:d.api_name, inputs:d.inputs?.length}))});
+        } catch {}
+        console.log("HF_SPACE_PROBE", base, route, response.status, detail);
+      } catch (error) { console.error("HF_SPACE_PROBE_ERROR", base, route, error.message); }
+    }
   }
 })();
-
 const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => console.log(`DJ SEBAS AI VIDEO activo en puerto ${port}`));
