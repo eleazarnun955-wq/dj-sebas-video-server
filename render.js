@@ -114,16 +114,16 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     };
 
     // Exact input order for the public ZeroGPU-AOTI Wan 2.2 Fast Space:
-    // input_image, prompt, steps, negative_prompt, duration_seconds,
-    // guidance_scale, guidance_scale_2, seed, randomize_seed.
+    // input_image, prompt, negative_prompt, duration_seconds,
+    // guidance_scale, guidance_scale_2, steps, seed, randomize_seed.
     const data = [
       inputImage,
       prompt,
-      4,
       "overexposed, static, blurry details, subtitles, watermark, low quality, deformed hands, extra fingers, distorted face, malformed limbs, frozen frame, cluttered background",
       4.5,
       1,
       1,
+      4,
       42,
       true
     ];
