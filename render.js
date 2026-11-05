@@ -4,7 +4,6 @@ import multer from "multer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PIXELSTER_API = "https://ahm7xmakki.com/api/ptv";
@@ -21,29 +20,23 @@ const upload = multer({
 });
 
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "6mb" }));
 
-// Lightweight request diagnostics: never log image contents or secrets.
 app.use((req, res, next) => {
   const started = Date.now();
   console.log("HTTP_IN", JSON.stringify({
     method: req.method,
     path: req.path,
     contentLength: req.headers["content-length"] || null,
-    contentType: req.headers["content-type"] || null,
-    origin: req.headers.origin || null
+    contentType: req.headers["content-type"] || null
   }));
   res.on("finish", () => console.log("HTTP_OUT", JSON.stringify({
     method: req.method, path: req.path, status: res.statusCode,
     durationMs: Date.now() - started
   })));
-  res.on("close", () => {
-    if (!res.writableFinished) console.warn("HTTP_CLOSED_EARLY", JSON.stringify({
-      method: req.method, path: req.path, durationMs: Date.now() - started
-    }));
-  });
   next();
 });
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/status", (_req, res) => {
@@ -58,25 +51,9 @@ app.get("/api/status", (_req, res) => {
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-// Serve uploaded images temporarily so Gradio can fetch them directly.
-// This avoids relying on a Space-specific upload route that currently returns 404.
-app.get("/api/hf-image/:id", (req, res) => {
-  const file = pendingImages.get(req.params.id);
-  if (!file) return res.status(404).send("Imagen temporal no encontrada.");
-  res.setHeader("Content-Type", file.mimetype);
-  res.setHeader("Content-Length", String(file.buffer.length));
-  res.setHeader("Cache-Control", "no-store");
-  res.end(file.buffer);
-});
-
 app.post("/api/generate", upload.single("image"), async (req, res) => {
-  console.log("GENERATE_ROUTE_ENTER", JSON.stringify({
-    hasFile: Boolean(req.fapp.post("/api/generate", upload.single("image"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "Selecciona una fotografía primero." });
-  }
-  if (req.file.size > 3.5 * 1024 * 1024) {
-    return res.status(413).json({ error: "PixelSter admite imágenes de hasta 3.5 MB. Reduce el tamaño de la fotografía e inténtalo de nuevo." });
   }
 
   const promptText = String(req.body.prompt || "").trim();
@@ -87,16 +64,21 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
 
   try {
     const imageBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-    console.log("PIXELSTER_JOB_SUBMIT", JSON.stringify({ duration, imageBytes: req.file.size }));
+    console.log("PIXELSTER_JOB_SUBMIT", JSON.stringify({
+      duration, imageBytes: req.file.size, imageType: req.file.mimetype
+    }));
+
     const apiResponse = await fetch(PIXELSTER_API, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ prompt, ratio: "9:16", duration, imageBase64 }),
       signal: AbortSignal.timeout(180000)
     });
+
     const raw = await apiResponse.text();
     let result;
     try { result = JSON.parse(raw); } catch { result = null; }
+
     if (!apiResponse.ok) {
       const detail = result?.error || result?.message || raw.slice(0, 240) || "Sin detalles del proveedor.";
       throw new Error(`PixelSter respondió HTTP ${apiResponse.status}: ${detail}`);
@@ -105,6 +87,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       throw new Error(result?.error || result?.message || "PixelSter no devolvió un enlace válido al video.");
     }
 
+    console.log("PIXELSTER_JOB_SUCCESS", JSON.stringify({ hasVideoUrl: true }));
     res.status(200);
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -115,9 +98,9 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     const detail = String(error?.message || error);
     console.error("PixelSter image-to-video error:", detail);
     if (!res.headersSent) {
-      const status = /429|rate.?limit|throttl|busy|ocupado/i.test(detail) ? 503 : 502;
-      return res.status(status).json({
-        error: /429|rate.?limit|throttl|busy|ocupado/i.test(detail)
+      const limited = /429|rate.?limit|throttl|busy|ocupado/i.test(detail);
+      return res.status(limited ? 503 : 502).json({
+        error: limited
           ? "PixelSter alcanzó temporalmente su límite gratuito. Espera un poco y vuelve a intentarlo."
           : "No se pudo generar el video con PixelSter: " + detail.slice(0, 260)
       });
@@ -125,5 +108,15 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     res.end();
   }
 });
+
+app.use((err, _req, res, _next) => {
+  console.error("REQUEST_ERROR", String(err?.message || err));
+  res.status(err?.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
+    error: err?.code === "LIMIT_FILE_SIZE"
+      ? "La fotografía supera el máximo de 3.5 MB que acepta PixelSter."
+      : err.message || "No se pudo procesar la solicitud."
+  });
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => console.log(`DJ SEBAS AI VIDEO activo en puerto ${port}`));
