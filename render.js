@@ -141,12 +141,12 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       transform(chunk, _encoding, callback) {
         const textChunk = chunk.toString("utf8");
         sseBuffer += textChunk;
-        const frames = sseBuffer.split(/\\r?\\n\\r?\\n/);
+        const frames = sseBuffer.split(/\r?\n\r?\n/);
         sseBuffer = frames.pop() || "";
         for (const frame of frames) {
-          const eventName = frame.match(/^event:\\s*(.+)$/m)?.[1]?.trim() || "message";
-          const dataLines = frame.split(/\\r?\\n/).filter(line => line.startsWith("data:"));
-          const payload = dataLines.map(line => line.slice(5).trim()).join("\\n");
+          const eventName = frame.match(/^event:\s*(.+)$/m)?.[1]?.trim() || "message";
+          const dataLines = frame.split(/\r?\n/).filter(line => line.startsWith("data:"));
+          const payload = dataLines.map(line => line.slice(5).trim()).join("\n");
           if (eventName === "error") {
             console.error("HF_SPACE_SSE_ERROR", JSON.stringify({
               eventId: job.event_id,
@@ -159,7 +159,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       },
       flush(callback) {
         if (sseBuffer.trim()) {
-          const eventName = sseBuffer.match(/^event:\\s*(.+)$/m)?.[1]?.trim() || "message";
+          const eventName = sseBuffer.match(/^event:\s*(.+)$/m)?.[1]?.trim() || "message";
           if (eventName === "error") {
             console.error("HF_SPACE_SSE_ERROR_FINAL", JSON.stringify({
               eventId: job.event_id,
