@@ -7,7 +7,7 @@ import { Readable, Transform } from "node:stream";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HF_SPACE_BASE = "https://zerogpu-aoti-wan2-2-fp8da-aoti-faster.hf.space";
+const HF_SPACE_BASE = "https://kulkas2pintu-wan555.hf.space";
 const HF_FN_NAME = "generate_video";
 
 const upload = multer({
@@ -83,14 +83,12 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       meta: { _type: "gradio.FileData" }
     };
 
-    // Orden exacto comprobado en app.py: ui_inputs = [
-    // input_image_component, prompt_input, steps_slider,
-    // negative_prompt_input, duration_seconds_input,
-    // guidance_scale_input, guidance_scale_2_input, seed_input,
-    // randomize_seed_checkbox
-    // ]
+    // Orden exacto de ui_inputs en app.py del Space kulkas2pintu/wan555:
+    // input_image, last_image, prompt, steps, negative_prompt, duration_seconds,
+    // guidance_scale, guidance_scale_2, seed, randomize_seed, quality, scheduler, flow_shift.
     const data = [
       inputImage,
+      null,
       prompt,
       4,
       "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走",
@@ -98,7 +96,10 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       1,
       1,
       42,
-      true
+      true,
+      6,
+      "UniPCMultistep",
+      3.0
     ];
 
     const jobResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}`, {
