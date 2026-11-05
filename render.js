@@ -9,6 +9,7 @@ const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HF_SPACE_BASE = "https://kulkas2pintu-wan555.hf.space";
 const HF_FN_NAME = "generate_video";
+const pendingImages = new Map();
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -37,6 +38,17 @@ app.get("/api/status", (_req, res) => {
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
+// Serve uploaded images temporarily so Gradio can fetch them directly.
+// This avoids relying on a Space-specific upload route that currently returns 404.
+app.get("/api/hf-image/:id", (req, res) => {
+  const file = pendingImages.get(req.params.id);
+  if (!file) return res.status(404).send("Imagen temporal no encontrada.");
+  res.setHeader("Content-Type", file.mimetype);
+  res.setHeader("Content-Length", String(file.buffer.length));
+  res.setHeader("Cache-Control", "no-store");
+  res.end(file.buffer);
+});
+
 app.post("/api/generate", upload.single("image"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "Selecciona una fotografía primero." });
@@ -52,40 +64,32 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     if (!hfToken) throw new Error("Falta HF_TOKEN en los secretos de Render.");
 
     const hfHeaders = { Authorization: `Bearer ${hfToken}` };
-    const imageForm = new FormData();
-    const imageBlob = new Blob([req.file.buffer], { type: req.file.mimetype });
-    imageForm.append("files", imageBlob, req.file.originalname || "foto.jpg");
 
-    const uploadResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/upload`, {
-      method: "POST",
-      headers: hfHeaders,
-      body: imageForm,
-      signal: AbortSignal.timeout(60000)
+    // Give the public Gradio Space a temporary URL for the image instead of
+    // calling its unavailable /gradio_api/upload route (currently HTTP 404).
+    const imageId = crypto.randomUUID();
+    pendingImages.set(imageId, {
+      buffer: req.file.buffer,
+      mimetype: req.file.mimetype
     });
+    const publicBase = String(process.env.RENDER_EXTERNAL_URL || `https://${req.get("host")}`).replace(/\\/$/, "");
+    const imageUrl = `${publicBase}/api/hf-image/${imageId}`;
+    const cleanupTimer = setTimeout(() => pendingImages.delete(imageId), 10 * 60 * 1000);
+    cleanupTimer.unref?.();
 
-    if (!uploadResponse.ok) {
-      const detail = await uploadResponse.text().catch(() => "");
-      throw new Error(`No se pudo subir la foto al motor gratuito (HTTP ${uploadResponse.status}). ${detail.slice(0, 180)}`);
-    }
-
-    const uploadedPaths = await uploadResponse.json();
-    if (!Array.isArray(uploadedPaths) || !uploadedPaths[0]) {
-      throw new Error("El motor gratuito no confirmó la recepción de la fotografía.");
-    }
-
-    const imagePath = uploadedPaths[0];
     const inputImage = {
-      path: imagePath,
-      url: `${HF_SPACE_BASE}/gradio_api/file=${imagePath}`,
+      path: imageUrl,
+      url: imageUrl,
       orig_name: req.file.originalname || "foto.jpg",
       size: req.file.size,
       mime_type: req.file.mimetype,
       meta: { _type: "gradio.FileData" }
     };
 
-    // Orden exacto de ui_inputs en app.py del Space kulkas2pintu/wan555:
+    // Exact ui_inputs order from the Space app.py:
     // input_image, last_image, prompt, steps, negative_prompt, duration_seconds,
-    // guidance_scale, guidance_scale_2, seed, randomize_seed, quality, scheduler, flow_shift.
+    // guidance_scale, guidance_scale_2, seed, randomize_seed, quality, scheduler,
+    // flow_shift, frame_multiplier, video_component, safe_mode.
     const data = [
       inputImage,
       null,
@@ -99,7 +103,10 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       true,
       6,
       "UniPCMultistep",
-      3.0
+      3.0,
+      16,
+      true,
+      true
     ];
 
     const jobResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}`, {
@@ -167,6 +174,10 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
         callback();
       }
     });
+    stream.on("end", () => {
+      clearTimeout(cleanupTimer);
+      pendingImages.delete(imageId);
+    });
     stream.on("error", (error) => {
       console.error("Error en el flujo de video:", error);
       if (!res.headersSent) res.status(502);
@@ -174,6 +185,8 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     });
     res.on("close", () => {
       if (!stream.destroyed) stream.destroy();
+      clearTimeout(cleanupTimer);
+      pendingImages.delete(imageId);
     });
     stream.pipe(sseDiagnostics).pipe(res);
   } catch (error) {
