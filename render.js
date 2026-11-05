@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PIXELSTER_API = "https://freeapi.pro/api/ptv";
+const PIXELSTER_API = "https://ahm7xmakki.com/api/ptv";
 
 const upload = multer({
   storage: multer.memoryStorage(),
