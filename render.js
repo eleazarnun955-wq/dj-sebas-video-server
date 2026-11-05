@@ -7,7 +7,7 @@ import { Readable, Transform } from "node:stream";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HF_SPACE_BASE = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
+const HF_SPACE_BASE = "https://zerogpu-aoti-wan2-2-fp8da-aoti-faster.hf.space";
 const HF_FN_NAME = "generate_video";
 
 const upload = multer({
@@ -30,7 +30,7 @@ app.get("/api/status", (_req, res) => {
     status: "online",
     name: "DJ SEBAS AI VIDEO",
     videoEngineConfigured: true,
-    engine: "Wan 2.2 · Hugging Face Space público",
+    engine: "Wan 2.2 Fast · Hugging Face ZeroGPU",
     note: "GPU compartida gratuita; puede haber espera o límites."
   });
 });
@@ -79,24 +79,19 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       meta: { _type: "gradio.FileData" }
     };
 
-    // Input order is taken from the live Space's generate_button.click inputs.
+    // API del Space zerogpu-aoti/wan2-2-fp8da-aoti-faster.
+    // generate_video(input_image, prompt, steps, negative_prompt, duration_seconds,
+    //                guidance_scale, guidance_scale_2, seed, randomize_seed)
     const data = [
-      inputImage, // input_image
-      null,       // last_image
+      inputImage,
       prompt,
-      4,          // inference steps: reduce GPU reservation for free ZeroGPU
+      4,
       "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走",
-      2.0,        // duration_seconds; keep xlarge ZeroGPU reservation within free quota
-      1,          // guidance_scale
-      1,          // guidance_scale_2
-      42,         // seed
-      true,       // randomize_seed
-      6,          // quality
-      "UniPCMultistep",
-      3.0,        // flow_shift
-      16,         // frame_multiplier / FPS
-      false,      // safe_mode: evita aumentar la reserva de GPU en el plan gratuito
-      true        // show result video
+      2.5,
+      1,
+      1,
+      42,
+      true
     ];
 
     const jobResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}`, {
