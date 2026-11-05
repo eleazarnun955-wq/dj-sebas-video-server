@@ -3,10 +3,13 @@ import cors from "cors";
 import multer from "multer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { InferenceClient } from "@huggingface/inference";
+import { Readable } from "node:stream";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const HF_SPACE_BASE = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
+const HF_FN_NAME = "generate_video";
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
@@ -26,17 +29,17 @@ app.get("/api/status", (_req, res) => {
   res.json({
     status: "online",
     name: "DJ SEBAS AI VIDEO",
-    videoEngineConfigured: Boolean(process.env.HF_TOKEN),
-    engine: "Hugging Face"
+    videoEngineConfigured: true,
+    engine: "Wan 2.2 · Hugging Face Space público",
+    note: "GPU compartida gratuita; puede haber espera o límites."
   });
 });
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 app.post("/api/generate", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Selecciona una fotografía primero." });
-  if (!process.env.HF_TOKEN) {
-    return res.status(503).json({ error: "Falta configurar HF_TOKEN en los secretos de Render. Crea un token de Hugging Face con permiso Inference Providers." });
+  if (!req.file) {
+    return res.status(400).json({ error: "Selecciona una fotografía primero." });
   }
 
   const promptText = String(req.body.prompt || "").trim();
@@ -45,26 +48,112 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
   const prompt = `${movement}. Estilo musical: ${style}. Mantener la apariencia, rostro y ropa de la persona de la fotografía. Cámara estable, movimiento natural, buena iluminación.`;
 
   try {
-    const client = new InferenceClient(process.env.HF_TOKEN);
-    const video = await client.imageToVideo({
-      inputs: new Blob([req.file.buffer], { type: req.file.mimetype }),
-      model: process.env.HF_VIDEO_MODEL || "Wan-AI/Wan2.1-I2V-14B-720P",
-      provider: process.env.HF_PROVIDER || "auto",
-      prompt
+    // Hugging Face Space Gradio upload: the public GPU Space does not require an API token.
+    const imageForm = new FormData();
+    const imageBlob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    imageForm.append("files", imageBlob, req.file.originalname || "foto.jpg");
+
+    const uploadResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/upload`, {
+      method: "POST",
+      body: imageForm,
+      signal: AbortSignal.timeout(60000)
     });
-    const bytes = Buffer.from(await video.arrayBuffer());
-    if (!bytes.length) throw new Error("Hugging Face devolvió un video vacío.");
-    res.setHeader("Content-Type", "video/mp4");
-    res.setHeader("Content-Disposition", 'attachment; filename="dj-sebas-video.mp4"');
-    res.setHeader("Content-Length", String(bytes.length));
-    return res.status(200).send(bytes);
+
+    if (!uploadResponse.ok) {
+      const detail = await uploadResponse.text().catch(() => "");
+      throw new Error(`No se pudo subir la foto al motor gratuito (HTTP ${uploadResponse.status}). ${detail.slice(0, 180)}`);
+    }
+
+    const uploadedPaths = await uploadResponse.json();
+    if (!Array.isArray(uploadedPaths) || !uploadedPaths[0]) {
+      throw new Error("El motor gratuito no confirmó la recepción de la fotografía.");
+    }
+
+    const imagePath = uploadedPaths[0];
+    const inputImage = {
+      path: imagePath,
+      url: `${HF_SPACE_BASE}/gradio_api/file=${imagePath}`,
+      orig_name: req.file.originalname || "foto.jpg",
+      size: req.file.size,
+      mime_type: req.file.mimetype,
+      meta: { _type: "gradio.FileData" }
+    };
+
+    // Input order is taken from the live Space's generate_button.click inputs.
+    const data = [
+      inputImage, // input_image
+      null,       // last_image
+      prompt,
+      6,          // inference steps
+      "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走",
+      4.5,        // duration_seconds; conservative cap for shared free GPU
+      1,          // guidance_scale
+      1,          // guidance_scale_2
+      42,         // seed
+      true,       // randomize_seed
+      6,          // quality
+      "UniPCMultistep",
+      3.0,        // flow_shift
+      16,         // frame_multiplier / FPS
+      false,      // safe_mode
+      true        // show result video
+    ];
+
+    const jobResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+      signal: AbortSignal.timeout(60000)
+    });
+
+    if (!jobResponse.ok) {
+      const detail = await jobResponse.text().catch(() => "");
+      throw new Error(`El motor gratuito rechazó la solicitud (HTTP ${jobResponse.status}). ${detail.slice(0, 220)}`);
+    }
+
+    const job = await jobResponse.json();
+    if (!job.event_id) {
+      throw new Error("El motor gratuito no devolvió el identificador de generación.");
+    }
+
+    // Stream Gradio's Server-Sent Events through Render. The browser reads the
+    // completed event and then plays the MP4 from the public Space.
+    const eventResponse = await fetch(
+      `${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}/${job.event_id}`,
+      { headers: { Accept: "text/event-stream" }, signal: req.signal }
+    );
+
+    if (!eventResponse.ok || !eventResponse.body) {
+      throw new Error(`No se pudo abrir el resultado del motor (HTTP ${eventResponse.status}).`);
+    }
+
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const stream = Readable.fromWeb(eventResponse.body);
+    stream.on("error", (error) => {
+      console.error("Error en el flujo de video:", error);
+      if (!res.headersSent) res.status(502);
+      res.end();
+    });
+    res.on("close", () => {
+      if (!stream.destroyed) stream.destroy();
+    });
+    stream.pipe(res);
   } catch (error) {
     const detail = String(error?.message || error);
-    console.error("Hugging Face video generation error:", detail);
-    if (/401|403|unauthorized|forbidden|token/i.test(detail)) return res.status(401).json({ error: "Hugging Face no aceptó el token. Revisa que tenga el permiso «Make calls to Inference Providers»." });
-    if (/402|quota|credit|billing|payment/i.test(detail)) return res.status(402).json({ error: "Hugging Face indica que no hay créditos disponibles para este modelo. Puede requerir saldo o esperar al reinicio de la cuota." });
-    if (/not supported|provider|model.*not found|no provider/i.test(detail)) return res.status(503).json({ error: "El modelo de video no tiene un proveedor disponible en este momento. Revisa su disponibilidad en Hugging Face." });
-    return res.status(502).json({ error: "No se pudo generar el video: " + detail.slice(0, 240) });
+    console.error("Wan 2.2 public Space error:", detail);
+    if (!res.headersSent) {
+      const status = /429|queue|busy|rate.?limit/i.test(detail) ? 503 : 502;
+      return res.status(status).json({
+        error: /429|queue|busy|rate.?limit/i.test(detail)
+          ? "El motor gratuito está ocupado. Espera un poco y vuelve a intentarlo."
+          : "No se pudo iniciar la generación gratuita: " + detail.slice(0, 240)
+      });
+    }
+    res.end();
   }
 });
 
