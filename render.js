@@ -3,17 +3,15 @@ import cors from "cors";
 import multer from "multer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Readable, Transform } from "node:stream";
+
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HF_SPACE_BASE = "https://zerogpu-aoti-wan2-2-fp8da-aoti-faster.hf.space";
-const HF_FN_NAME = "generate_video";
-const pendingImages = new Map();
+const PIXELSTER_API = "https://ahm7xmakki.com/api/ptv";
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 },
+  limits: { fileSize: 3.5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
       return cb(new Error("Formato de imagen no válido. Usa JPG, PNG o WEBP."));
@@ -53,8 +51,8 @@ app.get("/api/status", (_req, res) => {
     status: "online",
     name: "DJ SEBAS AI VIDEO",
     videoEngineConfigured: true,
-    engine: "Wan 2.2 Fast · Hugging Face ZeroGPU",
-    note: "GPU compartida gratuita; puede haber espera o límites."
+    engine: "PixelSter · FreeAPI",
+    note: "Motor gratuito sin token; sujeto a límites de uso razonable."
   });
 });
 
@@ -73,162 +71,59 @@ app.get("/api/hf-image/:id", (req, res) => {
 
 app.post("/api/generate", upload.single("image"), async (req, res) => {
   console.log("GENERATE_ROUTE_ENTER", JSON.stringify({
-    hasFile: Boolean(req.file),
-    fileSize: req.file?.size || 0,
-    fileType: req.file?.mimetype || null
-  }));
+    hasFile: Boolean(req.fapp.post("/api/generate", upload.single("image"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "Selecciona una fotografía primero." });
+  }
+  if (req.file.size > 3.5 * 1024 * 1024) {
+    return res.status(413).json({ error: "PixelSter admite imágenes de hasta 3.5 MB. Reduce el tamaño de la fotografía e inténtalo de nuevo." });
   }
 
   const promptText = String(req.body.prompt || "").trim();
   const style = String(req.body.style || "Libre").trim();
+  const duration = Math.min(20, Math.max(5, Number.parseInt(req.body.duration || "10", 10) || 10));
   const movement = promptText || "La persona de la fotografía cobra vida y baila con movimientos naturales y fluidos";
-  const prompt = `${movement}. Estilo musical: ${style}. Mantener la apariencia, rostro y ropa de la persona de la fotografía. Cámara estable, movimiento natural, buena iluminación.`;
+  const prompt = `${movement}. Estilo musical: ${style}. Mantener la apariencia, rostro y ropa de la persona. Cámara estable, movimiento natural, buena iluminación.`;
 
   try {
-    const hfToken = String(process.env.HF_TOKEN || "").trim();
-    if (!hfToken) throw new Error("Falta HF_TOKEN en los secretos de Render.");
-
-    const hfHeaders = { Authorization: `Bearer ${hfToken}` };
-
-    // Give the public Gradio Space a temporary URL for the image instead of
-    // calling its unavailable /gradio_api/upload route (currently HTTP 404).
-    const imageId = crypto.randomUUID();
-    pendingImages.set(imageId, {
-      buffer: req.file.buffer,
-      mimetype: req.file.mimetype
-    });
-    const publicBase = String(process.env.RENDER_EXTERNAL_URL || `https://${req.get("host")}`).replace(/\/$/, "");
-    const imageUrl = `${publicBase}/api/hf-image/${imageId}`;
-    const cleanupTimer = setTimeout(() => pendingImages.delete(imageId), 10 * 60 * 1000);
-    cleanupTimer.unref?.();
-
-    const inputImage = {
-      path: imageUrl,
-      url: imageUrl,
-      orig_name: req.file.originalname || "foto.jpg",
-      size: req.file.size,
-      mime_type: req.file.mimetype,
-      meta: { _type: "gradio.FileData" }
-    };
-
-    // Exact input order for the public ZeroGPU-AOTI Wan 2.2 Fast Space:
-    // input_image, prompt, negative_prompt, duration_seconds,
-    // guidance_scale, guidance_scale_2, steps, seed, randomize_seed.
-    const data = [
-      inputImage,
-      prompt,
-      "overexposed, static, blurry details, subtitles, watermark, low quality, deformed hands, extra fingers, distorted face, malformed limbs, frozen frame, cluttered background",
-      4.5,
-      1,
-      1,
-      4,
-      42,
-      true
-    ];
-
-    console.log("HF_JOB_SUBMIT", JSON.stringify({ space: HF_SPACE_BASE, fn: HF_FN_NAME }));
-    const jobResponse = await fetch(`${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}`, {
+    const imageBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    console.log("PIXELSTER_JOB_SUBMIT", JSON.stringify({ duration, imageBytes: req.file.size }));
+    const apiResponse = await fetch(PIXELSTER_API, {
       method: "POST",
-      headers: { ...hfHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ data }),
-      signal: AbortSignal.timeout(60000)
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ prompt, ratio: "9:16", duration, imageBase64 }),
+      signal: AbortSignal.timeout(180000)
     });
-
-    if (!jobResponse.ok) {
-      const detail = await jobResponse.text().catch(() => "");
-      throw new Error(`El motor gratuito rechazó la solicitud (HTTP ${jobResponse.status}). ${detail.slice(0, 220)}`);
+    const raw = await apiResponse.text();
+    let result;
+    try { result = JSON.parse(raw); } catch { result = null; }
+    if (!apiResponse.ok) {
+      const detail = result?.error || result?.message || raw.slice(0, 240) || "Sin detalles del proveedor.";
+      throw new Error(`PixelSter respondió HTTP ${apiResponse.status}: ${detail}`);
     }
-
-    const job = await jobResponse.json();
-    if (!job.event_id) {
-      throw new Error("El motor gratuito no devolvió el identificador de generación.");
-    }
-
-    const eventResponse = await fetch(
-      `${HF_SPACE_BASE}/gradio_api/call/${HF_FN_NAME}/${job.event_id}`,
-      { headers: { ...hfHeaders, Accept: "text/event-stream" }, signal: req.signal }
-    );
-
-    if (!eventResponse.ok || !eventResponse.body) {
-      throw new Error(`No se pudo abrir el resultado del motor (HTTP ${eventResponse.status}).`);
+    if (!result?.success || !result?.videoUrl || !/^https:\/\//i.test(result.videoUrl)) {
+      throw new Error(result?.error || result?.message || "PixelSter no devolvió un enlace válido al video.");
     }
 
     res.status(200);
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("X-Accel-Buffering", "no");
-
-    const stream = Readable.fromWeb(eventResponse.body);
-    let sseBuffer = "";
-    const sseDiagnostics = new Transform({
-      transform(chunk, _encoding, callback) {
-        sseBuffer += chunk.toString("utf8");
-        const frames = sseBuffer.split(/\r?\n\r?\n/);
-        sseBuffer = frames.pop() || "";
-        for (const frame of frames) {
-          const eventName = frame.match(/^event:\s*(.+)$/m)?.[1]?.trim() || "message";
-          const dataLines = frame.split(/\r?\n/).filter(line => line.startsWith("data:"));
-          const payload = dataLines.map(line => line.slice(5).trim()).join("\n");
-          if (eventName === "error") {
-            console.error("HF_SPACE_SSE_ERROR", JSON.stringify({
-              eventId: job.event_id,
-              payload: payload || "(sin data)",
-              frame: frame.slice(0, 2000)
-            }));
-          }
-        }
-        callback(null, chunk);
-      },
-      flush(callback) {
-        if (sseBuffer.trim()) {
-          const eventName = sseBuffer.match(/^event:\s*(.+)$/m)?.[1]?.trim() || "message";
-          if (eventName === "error") {
-            console.error("HF_SPACE_SSE_ERROR_FINAL", JSON.stringify({
-              eventId: job.event_id,
-              frame: sseBuffer.slice(0, 2000)
-            }));
-          }
-        }
-        callback();
-      }
-    });
-    stream.on("end", () => {
-      clearTimeout(cleanupTimer);
-      pendingImages.delete(imageId);
-    });
-    stream.on("error", (error) => {
-      console.error("Error en el flujo de video:", error);
-      if (!res.headersSent) res.status(502);
-      res.end();
-    });
-    res.on("close", () => {
-      if (!stream.destroyed) stream.destroy();
-      clearTimeout(cleanupTimer);
-      pendingImages.delete(imageId);
-    });
-    stream.pipe(sseDiagnostics).pipe(res);
+    res.write(`event: complete\ndata: ${JSON.stringify([{ url: result.videoUrl }])}\n\n`);
+    res.end();
   } catch (error) {
     const detail = String(error?.message || error);
-    console.error("Wan 2.2 public Space error:", detail);
+    console.error("PixelSter image-to-video error:", detail);
     if (!res.headersSent) {
-      const status = /429|queue|busy|rate.?limit/i.test(detail) ? 503 : 502;
+      const status = /429|rate.?limit|throttl|busy|ocupado/i.test(detail) ? 503 : 502;
       return res.status(status).json({
-        error: /429|queue|busy|rate.?limit/i.test(detail)
-          ? "El motor gratuito está ocupado. Espera un poco y vuelve a intentarlo."
-          : "No se pudo iniciar la generación gratuita: " + detail.slice(0, 240)
+        error: /429|rate.?limit|throttl|busy|ocupado/i.test(detail)
+          ? "PixelSter alcanzó temporalmente su límite gratuito. Espera un poco y vuelve a intentarlo."
+          : "No se pudo generar el video con PixelSter: " + detail.slice(0, 260)
       });
     }
     res.end();
   }
 });
-
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(400).json({ error: err.message || "No se pudo procesar la solicitud." });
-});
-
-
 const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => console.log(`DJ SEBAS AI VIDEO activo en puerto ${port}`));
