@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PIXELSTER_API = "https://freeapi.pro/api/ptv";
+const MAGIC_HOUR_API = "https://api.magichour.ai";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -44,92 +44,101 @@ app.get("/api/status", (_req, res) => {
     status: "online",
     name: "DJ SEBAS AI VIDEO",
     videoEngineConfigured: true,
-    engine: "PixelSter · FreeAPI",
-    note: "Motor gratuito sin token; sujeto a límites de uso razonable."
+    engine: "Magic Hour · LTX-2.5",
+    note: process.env.MAGIC_HOUR_API_KEY ? "API conectada; consumo sujeto a créditos disponibles." : "Falta configurar MAGIC_HOUR_API_KEY en Render."
   });
 });
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 app.post("/api/generate", upload.single("image"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "Selecciona una fotografía primero." });
-  }
+  if (!req.file) return res.status(400).json({ error: "Selecciona una fotografía primero." });
+  const apiKey = process.env.MAGIC_HOUR_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "Falta configurar MAGIC_HOUR_API_KEY en Render." });
 
   const promptText = String(req.body.prompt || "").trim();
   const style = String(req.body.style || "Libre").trim();
-  const duration = Math.min(20, Math.max(5, Number.parseInt(req.body.duration || "10", 10) || 10));
-  const movement = promptText || "La persona de la fotografía cobra vida y baila con movimientos naturales y fluidos";
-  const prompt = `${movement}. Estilo musical: ${style}. Mantener la apariencia, rostro y ropa de la persona. Cámara estable, movimiento natural, buena iluminación.`;
+  const duration = Math.min(60, Math.max(1, Number.parseInt(req.body.duration || "5", 10) || 5));
+  const prompt = `${promptText || "La persona de la fotografía cobra vida y baila con movimientos naturales y fluidos"}. Estilo musical: ${style}. Mantener la apariencia, rostro y ropa de la persona. Cámara estable, movimiento natural, buena iluminación.`;
+  const headers = { Authorization: `Bearer ${apiKey}`, Accept: "application/json", "Content-Type": "application/json" };
 
   try {
-    const imageBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-    console.log("PIXELSTER_JOB_SUBMIT", JSON.stringify({
-      duration, imageBytes: req.file.size, imageType: req.file.mimetype
-    }));
+    const extByType = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+    const extension = extByType[req.file.mimetype];
+    if (!extension) return res.status(400).json({ error: "Formato de imagen no válido." });
 
-    const requestBody = JSON.stringify({ prompt, ratio: "9:16", duration, imageBase64 });
-    const requestOptions = {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: requestBody,
-      signal: AbortSignal.timeout(180000),
-      redirect: "manual"
-    };
+    // 1) Obtener URL temporal y subir la fotografía a Magic Hour.
+    const uploadResponse = await fetch(`${MAGIC_HOUR_API}/v1/files/upload-urls`, {
+      method: "POST", headers,
+      body: JSON.stringify({ items: [{ type: "image", extension }] }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const uploadData = await uploadResponse.json().catch(() => ({}));
+    if (!uploadResponse.ok || !uploadData.items?.[0]?.upload_url || !uploadData.items?.[0]?.file_path) {
+      throw new Error(uploadData.message || uploadData.error || `Magic Hour upload URL HTTP ${uploadResponse.status}`);
+    }
+    const asset = uploadData.items[0];
+    const putResponse = await fetch(asset.upload_url, {
+      method: "PUT",
+      headers: { "Content-Type": req.file.mimetype },
+      body: req.file.buffer,
+      signal: AbortSignal.timeout(60000)
+    });
+    if (!putResponse.ok) throw new Error(`No se pudo subir la imagen a Magic Hour (HTTP ${putResponse.status}).`);
 
-    let apiResponse = await fetch(PIXELSTER_API, requestOptions);
-    console.log("PIXELSTER_HTTP_RESPONSE", JSON.stringify({
-      status: apiResponse.status,
-      url: apiResponse.url,
-      redirected: apiResponse.redirected,
-      location: apiResponse.headers.get("location"),
-      allow: apiResponse.headers.get("allow")
-    }));
-
-    // Preserve POST and its JSON body when the provider redirects the API route.
-    if ([301, 302, 303, 307, 308].includes(apiResponse.status)) {
-      const redirectTo = apiResponse.headers.get("location");
-      if (!redirectTo) throw new Error(`PixelSter redirigió con HTTP ${apiResponse.status} pero no indicó destino.`);
-      const redirectUrl = new URL(redirectTo, PIXELSTER_API).toString();
-      apiResponse = await fetch(redirectUrl, requestOptions);
-      console.log("PIXELSTER_REDIRECT_RESPONSE", JSON.stringify({
-        status: apiResponse.status,
-        url: redirectUrl,
-        location: apiResponse.headers.get("location"),
-        allow: apiResponse.headers.get("allow")
-      }));
+    // 2) Crear generación image-to-video con LTX-2.5 (modelo gratuito disponible según créditos).
+    const createResponse = await fetch(`${MAGIC_HOUR_API}/v1/image-to-video`, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        name: "DJ SEBAS AI VIDEO",
+        end_seconds: duration,
+        model: "ltx-2.5",
+        resolution: "480p",
+        audio: true,
+        style: { prompt },
+        assets: { image_file_path: asset.file_path }
+      }),
+      signal: AbortSignal.timeout(60000)
+    });
+    const created = await createResponse.json().catch(() => ({}));
+    if (!createResponse.ok || !created.id) {
+      const message = created.message || created.error || `Magic Hour respondió HTTP ${createResponse.status}`;
+      const status = createResponse.status === 402 ? 402 : createResponse.status === 401 ? 401 : 502;
+      return res.status(status).json({ error: message });
     }
 
-    const raw = await apiResponse.text();
-    let result;
-    try { result = JSON.parse(raw); } catch { result = null; }
-
-    if (!apiResponse.ok) {
-      const detail = result?.error || result?.message || raw.slice(0, 240) || "Sin detalles del proveedor.";
-      throw new Error(`PixelSter respondió HTTP ${apiResponse.status}: ${detail}`);
+    // 3) Consultar el proyecto hasta que esté listo.
+    let video = null;
+    const deadline = Date.now() + 240000;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      const statusResponse = await fetch(`${MAGIC_HOUR_API}/v1/video-projects/${encodeURIComponent(created.id)}`, {
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(30000)
+      });
+      const statusData = await statusResponse.json().catch(() => ({}));
+      if (!statusResponse.ok) throw new Error(statusData.message || `No se pudo consultar el video (HTTP ${statusResponse.status}).`);
+      if (statusData.status === "complete") {
+        video = statusData.downloads?.[0]?.url;
+        if (!video) throw new Error("Magic Hour terminó el trabajo pero no devolvió el enlace del video.");
+        break;
+      }
+      if (statusData.status === "error" || statusData.status === "canceled") {
+        throw new Error(statusData.error?.message || `La generación terminó con estado: ${statusData.status}`);
+      }
     }
-    if (!result?.success || !result?.videoUrl || !/^https:\/\//i.test(result.videoUrl)) {
-      throw new Error(result?.error || result?.message || "PixelSter no devolvió un enlace válido al video.");
-    }
+    if (!video) throw new Error("Magic Hour sigue procesando el video. Intenta consultar el proyecto más tarde.");
 
-    console.log("PIXELSTER_JOB_SUCCESS", JSON.stringify({ hasVideoUrl: true }));
     res.status(200);
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("X-Accel-Buffering", "no");
-    res.write(`event: complete\ndata: ${JSON.stringify([{ url: result.videoUrl }])}\n\n`);
+    res.write(`event: complete\\ndata: ${JSON.stringify([{ url: video }])}\\n\\n`);
     res.end();
   } catch (error) {
     const detail = String(error?.message || error);
-    console.error("PixelSter image-to-video error:", detail);
-    if (!res.headersSent) {
-      const limited = /429|rate.?limit|throttl|busy|ocupado/i.test(detail);
-      return res.status(limited ? 503 : 502).json({
-        error: limited
-          ? "PixelSter alcanzó temporalmente su límite gratuito. Espera un poco y vuelve a intentarlo."
-          : "No se pudo generar el video con PixelSter: " + detail.slice(0, 260)
-      });
-    }
+    console.error("Magic Hour image-to-video error:", detail);
+    if (!res.headersSent) return res.status(502).json({ error: "No se pudo generar el video con Magic Hour: " + detail.slice(0, 260) });
     res.end();
   }
 });
@@ -138,7 +147,7 @@ app.use((err, _req, res, _next) => {
   console.error("REQUEST_ERROR", String(err?.message || err));
   res.status(err?.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
     error: err?.code === "LIMIT_FILE_SIZE"
-      ? "La fotografía supera el máximo de 3.5 MB que acepta PixelSter."
+      ? "La fotografía supera el máximo de 3.5 MB que acepta Magic Hour."
       : err.message || "No se pudo procesar la solicitud."
   });
 });
