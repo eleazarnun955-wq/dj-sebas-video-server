@@ -24,7 +24,7 @@ main{width:min(720px,100%);margin:auto;padding:28px 18px 50px}.brand{text-align:
 <script>
 const $=id=>document.getElementById(id);let selected=null;
 $("image").addEventListener("change",e=>{selected=e.target.files[0];if(!selected)return;if(selected.size>3.5*1024*1024){$("message").style.display="block";$("message").textContent="La imagen supera 3.5 MB. Elige una más pequeña.";e.target.value="";selected=null;return;}const url=URL.createObjectURL(selected);$("preview").src=url;$("preview").style.display="block";});
-fetch("/api/status").then(r=>r.json()).then(d=>{$("server").textContent=d.status==="online"?"Servidor conectado · deAPI listo":"Servidor no disponible";}).catch(()=>$("server").textContent="No se pudo comprobar el servidor");
+fetch("/api/status").then(r=>r.json()).then(d=>{$("server").textContent=d.status!=="online"?"Servidor no disponible":d.videoEngineConfigured?"Servidor conectado · deAPI listo":"Servidor en línea · falta conectar la clave deAPI";}).catch(()=>$("server").textContent="No se pudo comprobar el servidor");
 
 function parseSseEvent(raw){let name="message";const lines=[];for(const line of raw.split("\n")){if(line.startsWith("event:"))name=line.slice(6).trim();else if(line.startsWith("data:"))lines.push(line.slice(5).trim());}return lines.length?{name,data:lines.join("\n")}:null;}
 function getVideoUrl(file){if(!file)return null;if(typeof file==="object"&&file.video)return getVideoUrl(file.video);if(typeof file==="string")return /^https:\/\//i.test(file)?file:null;if(typeof file==="object"){const value=file.url||file.path;return typeof value==="string"&&/^https:\/\//i.test(value)?value:null;}return null;}
