@@ -115,24 +115,15 @@ async function makeWanClip(imageFile, prompt, duration) {
   throw new Error("Wan 2.2 cerró la conexión antes de entregar el video.");
 }
 
-app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name: "audio", maxCount: 1 }]), async (req, res) => {
-  const imageFile = req.files?.image?.[0];
-  const audioFile = req.files?.audio?.[0];
-  if (!imageFile) return res.status(400).json({ error: "Selecciona una fotografía primero." });
-  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "Falta OPENAI_API_KEY en las variables de Render. No pegues la clave aquí en el chat." });
-  if (!ffmpegPath) return res.status(503).json({ error: "El servidor no tiene FFmpeg disponible para unir la canción y el video." });
 
-  const style = String(req.body.style || "Libre").slice(0, 80);
-  const userPrompt = String(req.body.prompt || "").slice(0, 1200);
-  const requested = Number.parseFloat(req.body.duration || "4.5");
-  const clipDuration = Math.max(1, Math.min(4.5, Number.isFinite(requested) ? requested : 4.5));
-  const work = path.join(os.tmpdir(), "dj-sebas-" + randomUUID());
+const jobs = new Map();
+
+async function runGenerationJob(job, imageFile, audioFile, options) {
+  const work = path.join(os.tmpdir(), "dj-sebas-" + job.id);
   await fs.mkdir(work, { recursive: true });
-
   try {
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-
+    job.status = "preparing";
+    job.message = "GPT está analizando la fotografía y preparando el movimiento…";
     const imageData = "data:" + imageFile.mimetype + ";base64," + imageFile.buffer.toString("base64");
     const ai = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -140,8 +131,7 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
       body: JSON.stringify({
         model: OPENAI_MODEL, max_output_tokens: 350,
         input: [{ role: "user", content: [
-          { type: "input_text", text: "Eres director de movimiento de DJ SEBAS AI VIDEO. Analiza la fotografía y crea un prompt para un clip image-to-video de " + clipDuration + " segundos, que pueda repetirse en bucle sin salto brusco. Estilo: " + style + ". Instrucción del usuario: " + (userPrompt || "persona bailando con energía y movimientos naturales") + ". " +
-          "Conserva la identidad, cara, ropa y número de personas. Describe pasos de baile rítmicos, movimiento corporal natural, cámara estable y fondo. No afirmes que escuchaste la canción; la sincronización final se hará al montar el clip con el audio. Devuelve solo el prompt visual." },
+          { type: "input_text", text: "Eres director de movimiento de DJ SEBAS AI VIDEO. Analiza la fotografía y crea un prompt para un clip image-to-video de " + options.clipDuration + " segundos, que pueda repetirse en bucle sin salto brusco. Estilo: " + options.style + ". Instrucción del usuario: " + (options.userPrompt || "persona bailando con energía y movimientos naturales") + ". Conserva la identidad, cara, ropa y número de personas. Describe pasos de baile rítmicos, movimiento corporal natural, cámara estable y fondo. No afirmes que escuchaste la canción; la sincronización final se hará al montar el clip con el audio. Devuelve solo el prompt visual." },
           { type: "input_image", image_url: imageData, detail: "high" }
         ] }]
       }),
@@ -152,13 +142,17 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
     const prompt = getOutputText(aiData).trim();
     if (!prompt) throw new Error("GPT no devolvió instrucciones de movimiento.");
 
-    const clip = await makeWanClip(imageFile, prompt, clipDuration);
+    job.status = "generating";
+    job.message = "Wan 2.2 está generando el clip. Puede tardar varios minutos…";
+    const clip = await makeWanClip(imageFile, prompt, options.clipDuration);
     const clipPath = path.join(work, "clip.mp4");
     await fs.writeFile(clipPath, clip);
 
     let finalPath = clipPath;
-    let fileName = randomUUID() + ".mp4";
+    const fileName = randomUUID() + ".mp4";
     if (audioFile) {
+      job.status = "mixing";
+      job.message = "El clip está listo. Ahora estamos uniendo la canción completa…";
       const ext = ({ "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/aac": "aac", "audio/flac": "flac", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/ogg": "ogg", "audio/webm": "webm", "audio/opus": "opus" })[audioFile.mimetype] || "audio";
       const audioPath = path.join(work, "music." + ext);
       finalPath = path.join(work, "final.mp4");
@@ -168,23 +162,63 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
     const outputPath = path.join(OUTPUT_DIR, fileName);
     await fs.copyFile(finalPath, outputPath);
     const stat = await fs.stat(outputPath);
-    res.end(JSON.stringify({
-      ok: true, videoUrl: "/generated/" + fileName,
-      duration: audioFile ? "Duración de la canción" : "Clip corto",
-      audioIncluded: Boolean(audioFile), repeatedClip: Boolean(audioFile),
-      sizeBytes: stat.size,
-      message: audioFile
-        ? "Video terminado con la canción completa. El clip de baile se repite para cubrir la duración del audio."
-        : "Clip generado. Sube una canción para crear el videoclip con audio."
-    }));
+    job.status = "completed";
+    job.videoUrl = "/generated/" + fileName;
+    job.sizeBytes = stat.size;
+    job.message = audioFile
+      ? "Video terminado con la canción completa. El clip de baile se repite para cubrir la duración del audio."
+      : "Clip generado. Sube una canción para crear el videoclip con audio.";
   } catch (error) {
-    const detail = String(error?.message || error);
-    console.error("DJ_SEBAS_GENERATION_ERROR", detail);
-    if (!res.headersSent) return res.status(502).json({ error: detail.slice(0, 700) });
-    res.end(JSON.stringify({ ok: false, error: detail.slice(0, 700) }));
+    job.status = "failed";
+    job.error = String(error?.message || error).slice(0, 700);
+    job.message = "No se pudo terminar la generación.";
+    console.error("DJ_SEBAS_GENERATION_ERROR", job.id, job.error);
   } finally {
     await fs.rm(work, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name: "audio", maxCount: 1 }]), async (req, res) => {
+  const imageFile = req.files?.image?.[0];
+  const audioFile = req.files?.audio?.[0];
+  if (!imageFile) return res.status(400).json({ error: "Selecciona una fotografía primero." });
+  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "Falta OPENAI_API_KEY en las variables de Render. No pegues la clave aquí en el chat." });
+  if (!ffmpegPath) return res.status(503).json({ error: "El servidor no tiene FFmpeg disponible para unir la canción y el video." });
+
+  const requested = Number.parseFloat(req.body.duration || "4.5");
+  const clipDuration = Math.max(1, Math.min(4.5, Number.isFinite(requested) ? requested : 4.5));
+  const job = {
+    id: randomUUID(), status: "queued",
+    message: "Solicitud recibida. Preparando el trabajo…",
+    createdAt: Date.now()
+  };
+  jobs.set(job.id, job);
+  if (jobs.size > 30) {
+    for (const [id, item] of jobs) {
+      if (Date.now() - item.createdAt > 60 * 60 * 1000) jobs.delete(id);
+    }
+  }
+  res.status(202).json({ ok: true, jobId: job.id, statusUrl: "/api/jobs/" + job.id });
+  void runGenerationJob(job, imageFile, audioFile, {
+    style: String(req.body.style || "Libre").slice(0, 80),
+    userPrompt: String(req.body.prompt || "").slice(0, 1200),
+    clipDuration
+  });
+});
+
+app.get("/api/jobs/:id", (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: "No encuentro esta generación. Si el servidor se reinició, vuelve a iniciar el proceso." });
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    ok: job.status !== "failed",
+    jobId: job.id,
+    status: job.status,
+    message: job.message,
+    error: job.error || null,
+    videoUrl: job.videoUrl || null,
+    sizeBytes: job.sizeBytes || null
+  });
 });
 
 app.use((err, _req, res, _next) => {
