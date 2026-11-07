@@ -78,10 +78,12 @@ async function makeWanClip(imageFile, prompt, duration) {
     orig_name: imageFile.originalname || "photo.png", size: imageFile.size,
     mime_type: imageFile.mimetype, meta: { _type: "gradio.FileData" }
   };
+  // Match the current public Space API defaults and enable its Safe Mode.
+  // Safe Mode reserves extra ZeroGPU time for busy or slow generations.
   const data = [
-    inputImage, null, prompt, 6,
+    inputImage, null, prompt, 4,
     "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走",
-    duration, 1, 1, 42, true, 6, "UniPCMultistep", 3.0, 16, false, true
+    duration, 1, 1, 42, true, 5, "UniPCMultistep", 3.0, 16, true, true
   ];
   const start = await fetch(HF_SPACE + "/gradio_api/call/generate_video", {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -99,7 +101,13 @@ async function makeWanClip(imageFile, prompt, duration) {
   for (const block of blocks) {
     const event = block.match(/^event:\s*(\S+)/m)?.[1];
     const raw = block.split("\n").filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
-    if (event === "error") throw new Error("Wan 2.2: " + (raw || "el motor no pudo generar el clip."));
+    if (event === "error") {
+      let detail = raw || "";
+      if (!detail || detail === "null" || detail === "undefined") {
+        detail = "el Space público no explicó el fallo. Se activó Safe Mode y se redujeron los pasos para evitar el límite de tiempo de ZeroGPU; puede estar ocupado temporalmente.";
+      }
+      throw new Error("Wan 2.2: " + detail);
+    }
     if (event === "complete") {
       let payload;
       try { payload = JSON.parse(raw); } catch { throw new Error("Wan 2.2 devolvió un resultado ilegible."); }
