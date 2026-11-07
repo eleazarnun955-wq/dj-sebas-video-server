@@ -85,40 +85,63 @@ async function makeWanClip(imageFile, prompt, duration) {
     "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走",
     duration, 1, 1, 42, true, 5, "UniPCMultistep", 3.0, 16, true, true
   ];
-  const start = await fetch(HF_SPACE + "/gradio_api/call/generate_video", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data }), signal: AbortSignal.timeout(60000)
-  });
-  if (!start.ok) throw new Error("Wan 2.2 rechazó la generación (HTTP " + start.status + "). Puede estar saturado o sin cuota disponible.");
-  const created = await start.json();
-  if (!created.event_id) throw new Error("Wan 2.2 no devolvió el identificador de generación.");
-  const result = await fetch(HF_SPACE + "/gradio_api/call/generate_video/" + encodeURIComponent(created.event_id), {
-    headers: { Accept: "text/event-stream" }, signal: AbortSignal.timeout(10 * 60 * 1000)
-  });
-  if (!result.ok || !result.body) throw new Error("No se pudo consultar el resultado de Wan 2.2 (HTTP " + result.status + ").");
-  const body = await result.text();
-  const blocks = body.split("\n\n");
-  for (const block of blocks) {
-    const event = block.match(/^event:\s*(\S+)/m)?.[1];
-    const raw = block.split("\n").filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
-    if (event === "error") {
-      let detail = raw || "";
-      if (!detail || detail === "null" || detail === "undefined") {
-        detail = "el Space público no explicó el fallo. Se activó Safe Mode y se redujeron los pasos para evitar el límite de tiempo de ZeroGPU; puede estar ocupado temporalmente.";
+  let lastError = "Wan 2.2 no completó la generación.";
+  // Public ZeroGPU Spaces can fail transiently when their shared GPU is busy.
+  // Retry once with a fresh Gradio event instead of immediately failing the user's job.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const start = await fetch(HF_SPACE + "/gradio_api/call/generate_video", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data }), signal: AbortSignal.timeout(60000)
+      });
+      if (!start.ok) {
+        const message = "Wan 2.2 rechazó la generación (HTTP " + start.status + ").";
+        if (attempt < 2 && [429, 500, 502, 503, 504].includes(start.status)) throw new Error(message);
+        throw new Error(message + " El Space público puede estar saturado o sin cuota ZeroGPU.");
       }
-      throw new Error("Wan 2.2: " + detail);
-    }
-    if (event === "complete") {
-      let payload;
-      try { payload = JSON.parse(raw); } catch { throw new Error("Wan 2.2 devolvió un resultado ilegible."); }
-      const url = getVideoPath(payload);
-      if (!url) throw new Error("Wan 2.2 terminó pero no entregó un archivo de video.");
-      const videoResponse = await fetch(url, { signal: AbortSignal.timeout(120000) });
-      if (!videoResponse.ok) throw new Error("No se pudo descargar el clip generado (HTTP " + videoResponse.status + ").");
-      return Buffer.from(await videoResponse.arrayBuffer());
+      const created = await start.json();
+      if (!created.event_id) throw new Error("Wan 2.2 no devolvió el identificador de generación.");
+      const result = await fetch(HF_SPACE + "/gradio_api/call/generate_video/" + encodeURIComponent(created.event_id), {
+        headers: { Accept: "text/event-stream" }, signal: AbortSignal.timeout(5 * 60 * 1000)
+      });
+      if (!result.ok || !result.body) {
+        const message = "No se pudo consultar el resultado de Wan 2.2 (HTTP " + result.status + ").";
+        if (attempt < 2 && [429, 500, 502, 503, 504].includes(result.status)) throw new Error(message);
+        throw new Error(message);
+      }
+      const body = await result.text();
+      const blocks = body.split("\n\n");
+      let completed = false;
+      for (const block of blocks) {
+        const event = block.match(/^event:\s*(\S+)/m)?.[1];
+        const raw = block.split("\n").filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
+        if (event === "error") {
+          let detail = raw || "";
+          if (!detail || detail === "null" || detail === "undefined") {
+            detail = "el Space público no explicó el fallo; probablemente está ocupado o alcanzó el límite temporal de ZeroGPU.";
+          }
+          throw new Error("Wan 2.2: " + detail);
+        }
+        if (event === "complete") {
+          let payload;
+          try { payload = JSON.parse(raw); } catch { throw new Error("Wan 2.2 devolvió un resultado ilegible."); }
+          const url = getVideoPath(payload);
+          if (!url) throw new Error("Wan 2.2 terminó pero no entregó un archivo de video.");
+          const videoResponse = await fetch(url, { signal: AbortSignal.timeout(120000) });
+          if (!videoResponse.ok) throw new Error("No se pudo descargar el clip generado (HTTP " + videoResponse.status + ").");
+          completed = true;
+          return Buffer.from(await videoResponse.arrayBuffer());
+        }
+      }
+      if (!completed) throw new Error("Wan 2.2 cerró la conexión antes de entregar el video.");
+    } catch (error) {
+      lastError = String(error?.message || error);
+      if (attempt >= 2) break;
+      console.warn("Wan 2.2 intento " + attempt + " falló; se reintentará una vez:", lastError);
+      await new Promise(resolve => setTimeout(resolve, 12000));
     }
   }
-  throw new Error("Wan 2.2 cerró la conexión antes de entregar el video.");
+  throw new Error(lastError + " Se hicieron 2 intentos; vuelve a probar más tarde si el Space sigue ocupado.");
 }
 
 
