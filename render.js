@@ -12,7 +12,6 @@ import ffmpegPath from "ffmpeg-static";
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HF_SPACE = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
-const OPENAI_MODEL = "gpt-5.4-mini";
 const OUTPUT_DIR = path.join(os.tmpdir(), "dj-sebas-generated");
 await fs.mkdir(OUTPUT_DIR, { recursive: true });
 
@@ -35,11 +34,10 @@ app.use("/generated", express.static(OUTPUT_DIR, { fallthrough: false, maxAge: "
 app.get("/api/status", (_req, res) => res.json({
   status: "online",
   name: "DJ SEBAS AI VIDEO",
-  openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
   videoEngineConfigured: true,
-  engine: "GPT + Wan 2.2 público",
+  engine: "Wan 2.2 público · sin claves API",
   audioMixing: Boolean(ffmpegPath),
-  note: "GPT prepara las instrucciones; Wan genera un clip corto y FFmpeg lo combina con la canción."
+  note: "Las instrucciones de movimiento se preparan localmente; Wan 2.2 anima la fotografía y FFmpeg une el clip con la canción."
 }));
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
@@ -123,24 +121,19 @@ async function runGenerationJob(job, imageFile, audioFile, options) {
   await fs.mkdir(work, { recursive: true });
   try {
     job.status = "preparing";
-    job.message = "GPT está analizando la fotografía y preparando el movimiento…";
-    const imageData = "data:" + imageFile.mimetype + ";base64," + imageFile.buffer.toString("base64");
-    const ai = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + process.env.OPENAI_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: OPENAI_MODEL, max_output_tokens: 350,
-        input: [{ role: "user", content: [
-          { type: "input_text", text: "Eres director de movimiento de DJ SEBAS AI VIDEO. Analiza la fotografía y crea un prompt para un clip image-to-video de " + options.clipDuration + " segundos, que pueda repetirse en bucle sin salto brusco. Estilo: " + options.style + ". Instrucción del usuario: " + (options.userPrompt || "persona bailando con energía y movimientos naturales") + ". Conserva la identidad, cara, ropa y número de personas. Describe pasos de baile rítmicos, movimiento corporal natural, cámara estable y fondo. No afirmes que escuchaste la canción; la sincronización final se hará al montar el clip con el audio. Devuelve solo el prompt visual." },
-          { type: "input_image", image_url: imageData, detail: "high" }
-        ] }]
-      }),
-      signal: AbortSignal.timeout(60000)
-    });
-    const aiData = await ai.json().catch(() => ({}));
-    if (!ai.ok) throw new Error("OpenAI respondió HTTP " + ai.status + ": " + (aiData.error?.message || "no se pudo preparar el prompt."));
-    const prompt = getOutputText(aiData).trim();
-    if (!prompt) throw new Error("GPT no devolvió instrucciones de movimiento.");
+    job.message = "Preparando las instrucciones de movimiento sin claves API…";
+    const style = String(options.style || "Libre");
+    const userPrompt = String(options.userPrompt || "la persona bailando con energía y movimientos naturales");
+    const prompt = [
+      "Create a natural image-to-video animation for DJ SEBAS AI VIDEO.",
+      "Style: " + style + ".",
+      "Action requested: " + userPrompt + ".",
+      "Animate the visible person or people with expressive, rhythmic full-body dance movements, natural timing, realistic anatomy, and smooth continuous motion.",
+      "Preserve each person's identity, face, clothing, body proportions, and the original number of people.",
+      "Keep the camera stable with subtle cinematic movement and preserve the scene background.",
+      "Create a short seamless-feeling dance clip suitable for looping under a music track.",
+      "Do not add text, logos, extra people, extra limbs, or scene cuts."
+    ].join(" ");
 
     job.status = "generating";
     job.message = "Wan 2.2 está generando el clip. Puede tardar varios minutos…";
@@ -182,7 +175,6 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
   const imageFile = req.files?.image?.[0];
   const audioFile = req.files?.audio?.[0];
   if (!imageFile) return res.status(400).json({ error: "Selecciona una fotografía primero." });
-  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "Falta OPENAI_API_KEY en las variables de Render. No pegues la clave aquí en el chat." });
   if (!ffmpegPath) return res.status(503).json({ error: "El servidor no tiene FFmpeg disponible para unir la canción y el video." });
 
   const requested = Number.parseFloat(req.body.duration || "4.5");
@@ -231,4 +223,4 @@ app.use((err, _req, res, _next) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, "0.0.0.0", () => console.log("DJ SEBAS AI VIDEO listo · GPT + Wan 2.2 + FFmpeg · puerto " + port));
+app.listen(port, "0.0.0.0", () => console.log("DJ SEBAS AI VIDEO listo · Wan 2.2 sin claves API + FFmpeg · puerto " + port));
