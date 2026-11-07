@@ -1,15 +1,13 @@
 {
   "name": "dj-sebas-video-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "main": "render.js",
-  "scripts": {
-    "start": "node render.js"
-  },
+  "scripts": { "start": "node render.js" },
   "dependencies": {
     "express": "^4.21.2",
     "cors": "^2.8.5",
     "multer": "^2.0.2",
-    "@huggingface/inference": "^4.7.1"
+    "ffmpeg-static": "^5.2.0"
   }
 }
