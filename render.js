@@ -132,7 +132,6 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
   try {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.write("Preparando instrucciones con GPT…\n");
 
     const imageData = "data:" + imageFile.mimetype + ";base64," + imageFile.buffer.toString("base64");
     const ai = await fetch("https://api.openai.com/v1/responses", {
@@ -153,7 +152,6 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
     const prompt = getOutputText(aiData).trim();
     if (!prompt) throw new Error("GPT no devolvió instrucciones de movimiento.");
 
-    res.write("GPT preparó el movimiento. Wan 2.2 está generando el clip…\n");
     const clip = await makeWanClip(imageFile, prompt, clipDuration);
     const clipPath = path.join(work, "clip.mp4");
     await fs.writeFile(clipPath, clip);
@@ -161,7 +159,6 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
     let finalPath = clipPath;
     let fileName = randomUUID() + ".mp4";
     if (audioFile) {
-      res.write("Clip generado. Combinando la canción completa con el video…\n");
       const ext = ({ "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/aac": "aac", "audio/flac": "flac", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/ogg": "ogg", "audio/webm": "webm", "audio/opus": "opus" })[audioFile.mimetype] || "audio";
       const audioPath = path.join(work, "music." + ext);
       finalPath = path.join(work, "final.mp4");
