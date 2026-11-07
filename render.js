@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAGIC_HOUR_API = "https://api.magichour.ai";
+const OPENAI_MODEL = "gpt-6-astra";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -43,9 +44,13 @@ app.get("/api/status", (_req, res) => {
   res.json({
     status: "online",
     name: "DJ SEBAS AI VIDEO",
-    videoEngineConfigured: true,
-    engine: "Magic Hour · LTX-2.5",
-    note: process.env.MAGIC_HOUR_API_KEY ? "API conectada; consumo sujeto a créditos disponibles." : "Falta configurar MAGIC_HOUR_API_KEY en Render."
+    openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
+    openaiModel: OPENAI_MODEL,
+    videoEngineConfigured: Boolean(process.env.MAGIC_HOUR_API_KEY),
+    engine: "OpenAI · " + OPENAI_MODEL + " / Magic Hour · LTX-2.5",
+    note: process.env.OPENAI_API_KEY
+      ? "OpenAI está configurado para analizar la fotografía y preparar el prompt."
+      : "Falta OPENAI_API_KEY en Render. La clave debe guardarse como variable de entorno."
   });
 });
 
@@ -53,21 +58,53 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 app.post("/api/generate", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Selecciona una fotografía primero." });
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) return res.status(503).json({ error: "Falta configurar OPENAI_API_KEY en Render. Agrega tu clave como variable de entorno." });
   const apiKey = process.env.MAGIC_HOUR_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: "Falta configurar MAGIC_HOUR_API_KEY en Render." });
+  if (!apiKey) return res.status(503).json({ error: "OpenAI está configurado, pero falta la clave del motor de video Magic Hour. GPT prepara las instrucciones; no crea el archivo de video por sí solo." });
 
   const promptText = String(req.body.prompt || "").trim();
   const style = String(req.body.style || "Libre").trim();
   const duration = Math.min(60, Math.max(1, Number.parseInt(req.body.duration || "5", 10) || 5));
-  const prompt = `${promptText || "La persona de la fotografía cobra vida y baila con movimientos naturales y fluidos"}. Estilo musical: ${style}. Mantener la apariencia, rostro y ropa de la persona. Cámara estable, movimiento natural, buena iluminación.`;
   const headers = { Authorization: `Bearer ${apiKey}`, Accept: "application/json", "Content-Type": "application/json" };
 
   try {
+    // OpenAI analiza la foto y prepara el prompt visual para el motor de video.
+    const imageData = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    const aiResponse = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        max_output_tokens: 280,
+        input: [{
+          role: "user",
+          content: [
+            { type: "input_text", text: `Eres director creativo de videoclips para DJ SEBAS AI VIDEO. Observa la fotografía y redacta un prompt visual en español para un motor image-to-video. Idea del usuario: ${promptText || "anima a la persona con movimientos naturales y fluidos"}. Estilo musical: ${style}. Duración: ${duration} segundos. Describe movimientos realistas, cámara y ambiente; conserva rostro, ropa, identidad visual y número de personas. No inventes personas ni cambies su apariencia. Devuelve solamente el prompt final.` },
+            { type: "input_image", image_url: imageData }
+          ]
+        }]
+      }),
+      signal: AbortSignal.timeout(60000)
+    });
+    const aiData = await aiResponse.json().catch(() => ({}));
+    if (!aiResponse.ok) {
+      const detail = aiData.error?.message || `OpenAI respondió HTTP ${aiResponse.status}`;
+      const status = aiResponse.status === 401 ? 401 : aiResponse.status === 429 ? 429 : 502;
+      return res.status(status).json({ error: `Error de OpenAI: ${detail}` });
+    }
+    const prompt = aiData.output_text || (aiData.output || [])
+      .flatMap(item => item.content || [])
+      .filter(part => part.type === "output_text")
+      .map(part => part.text)
+      .join("\n");
+    if (!prompt) throw new Error("OpenAI no devolvió las instrucciones para el video.");
+
     const extByType = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
     const extension = extByType[req.file.mimetype];
     if (!extension) return res.status(400).json({ error: "Formato de imagen no válido." });
 
-    // 1) Obtener URL temporal y subir la fotografía a Magic Hour.
+    // Subir la fotografía al motor de video.
     const uploadResponse = await fetch(`${MAGIC_HOUR_API}/v1/files/upload-urls`, {
       method: "POST", headers,
       body: JSON.stringify({ items: [{ type: "image", extension }] }),
@@ -86,7 +123,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     });
     if (!putResponse.ok) throw new Error(`No se pudo subir la imagen a Magic Hour (HTTP ${putResponse.status}).`);
 
-    // 2) Crear generación image-to-video con LTX-2.5 (modelo gratuito disponible según créditos).
+    // Crear generación image-to-video (sujeto a la disponibilidad y créditos del proveedor).
     const createResponse = await fetch(`${MAGIC_HOUR_API}/v1/image-to-video`, {
       method: "POST", headers,
       body: JSON.stringify({
@@ -137,7 +174,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
     res.end();
   } catch (error) {
     const detail = String(error?.message || error);
-    console.error("Magic Hour image-to-video error:", detail);
+    console.error("DJ SEBAS generation error:", detail);
     if (!res.headersSent) return res.status(502).json({ error: "No se pudo generar el video con Magic Hour: " + detail.slice(0, 260) });
     res.end();
   }
