@@ -29,7 +29,7 @@ main{width:min(720px,100%);margin:auto;padding:28px 18px 50px}.brand{text-align:
 const $=id=>document.getElementById(id);let selected=null,selectedAudio=null;
 $("image").addEventListener("change",e=>{selected=e.target.files[0];if(!selected)return;if(selected.size>25*1024*1024){alert("La fotografía supera 25 MB.");e.target.value="";selected=null;return;}const url=URL.createObjectURL(selected);$("preview").src=url;$("preview").style.display="block";});
 $("audio").addEventListener("change",e=>{selectedAudio=e.target.files[0];if(!selectedAudio)return;if(selectedAudio.size>25*1024*1024){alert("La canción supera 25 MB.");e.target.value="";selectedAudio=null;return;}const url=URL.createObjectURL(selectedAudio);$("audioPreview").src=url;$("audioPreview").style.display="block";});
-fetch("/api/status").then(r=>r.json()).then(d=>{$("server").textContent=d.status==="online"?(d.openaiConfigured?"Servidor conectado · GPT configurado":"Servidor conectado · falta OPENAI_API_KEY"):"Servidor no disponible";}).catch(()=>$("server").textContent="No se pudo comprobar el servidor");
+fetch("/api/status").then(r=>r.json()).then(d=>{$("server").textContent=d.status==="online"?"Servidor conectado · generación sin claves API":"Servidor no disponible";}).catch(()=>$("server").textContent="No se pudo comprobar el servidor");
 $("form").addEventListener("submit",async e=>{
  e.preventDefault();
  if(!selected)return;
