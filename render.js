@@ -11,11 +11,12 @@ const OPENAI_MODEL = "gpt-6-astra";
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 3.5 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
-      return cb(new Error("Formato de imagen no válido. Usa JPG, PNG o WEBP."));
-    }
+    const imageTypes = ["image/jpeg", "image/png", "image/webp"];
+    const audioTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/aac", "audio/flac", "audio/mp4", "audio/x-m4a", "audio/ogg", "audio/webm", "audio/opus", "audio/aiff"];
+    if (file.fieldname === "image" && !imageTypes.includes(file.mimetype)) return cb(new Error("Formato de imagen no válido. Usa JPG, PNG o WEBP."));
+    if (file.fieldname === "audio" && !audioTypes.includes(file.mimetype)) return cb(new Error("Formato de música no válido. Usa MP3, WAV, M4A, AAC, FLAC u OGG."));
     cb(null, true);
   }
 });
@@ -56,8 +57,10 @@ app.get("/api/status", (_req, res) => {
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-app.post("/api/generate", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Selecciona una fotografía primero." });
+app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name: "audio", maxCount: 1 }]), async (req, res) => {
+  const imageFile = req.files?.image?.[0];
+  const audioFile = req.files?.audio?.[0];
+  if (!imageFile) return res.status(400).json({ error: "Selecciona una fotografía primero." });
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) return res.status(503).json({ error: "Falta configurar OPENAI_API_KEY en Render. Agrega tu clave como variable de entorno." });
   const apiKey = process.env.MAGIC_HOUR_API_KEY;
@@ -70,7 +73,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
 
   try {
     // OpenAI analiza la foto y prepara el prompt visual para el motor de video.
-    const imageData = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    const imageData = `data:${imageFile.mimetype};base64,${imageFile.buffer.toString("base64")}`;
     const aiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
@@ -80,7 +83,7 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
         input: [{
           role: "user",
           content: [
-            { type: "input_text", text: `Eres director creativo de videoclips para DJ SEBAS AI VIDEO. Observa la fotografía y redacta un prompt visual en español para un motor image-to-video. Idea del usuario: ${promptText || "anima a la persona con movimientos naturales y fluidos"}. Estilo musical: ${style}. Duración: ${duration} segundos. Describe movimientos realistas, cámara y ambiente; conserva rostro, ropa, identidad visual y número de personas. No inventes personas ni cambies su apariencia. Devuelve solamente el prompt final.` },
+            { type: "input_text", text: `Eres director creativo de videoclips para DJ SEBAS AI VIDEO. Observa la fotografía y redacta un prompt visual en español para un motor image-to-video. Idea del usuario: ${promptText || "anima a la persona con movimientos naturales y fluidos"}. Estilo musical: ${style}. Duración: ${duration} segundos. ${audioFile ? "La canción se enviará al motor como guía de audio; crea movimientos de baile con acentos rítmicos." : "No hay canción cargada; crea movimientos naturales según el estilo indicado."} Describe movimientos realistas, cámara y ambiente; conserva rostro, ropa, identidad visual y número de personas. No inventes personas ni cambies su apariencia. Devuelve solamente el prompt final.` },
             { type: "input_image", image_url: imageData }
           ]
         }]
@@ -100,50 +103,36 @@ app.post("/api/generate", upload.single("image"), async (req, res) => {
       .join("\n");
     if (!prompt) throw new Error("OpenAI no devolvió las instrucciones para el video.");
 
-    const extByType = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
-    const extension = extByType[req.file.mimetype];
-    if (!extension) return res.status(400).json({ error: "Formato de imagen no válido." });
-
-    // Subir la fotografía al motor de video.
-    const uploadResponse = await fetch(`${MAGIC_HOUR_API}/v1/files/upload-urls`, {
-      method: "POST", headers,
-      body: JSON.stringify({ items: [{ type: "image", extension }] }),
-      signal: AbortSignal.timeout(30000)
-    });
+    const imageExt = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+    const audioExt = { "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/aac": "aac", "audio/flac": "flac", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/ogg": "ogg", "audio/webm": "webm", "audio/opus": "opus", "audio/aiff": "aiff" };
+    if (!imageExt[imageFile.mimetype]) return res.status(400).json({ error: "Formato de imagen no válido." });
+    if (audioFile && !audioExt[audioFile.mimetype]) return res.status(400).json({ error: "Formato de música no compatible." });
+    const items = [{ type: "image", extension: imageExt[imageFile.mimetype] }];
+    if (audioFile) items.push({ type: "audio", extension: audioExt[audioFile.mimetype] });
+    const uploadResponse = await fetch(MAGIC_HOUR_API + "/v1/files/upload-urls", { method: "POST", headers, body: JSON.stringify({ items }), signal: AbortSignal.timeout(30000) });
     const uploadData = await uploadResponse.json().catch(() => ({}));
-    if (!uploadResponse.ok || !uploadData.items?.[0]?.upload_url || !uploadData.items?.[0]?.file_path) {
-      throw new Error(uploadData.message || uploadData.error || `Magic Hour upload URL HTTP ${uploadResponse.status}`);
+    if (!uploadResponse.ok || !uploadData.items?.[0]?.upload_url || !uploadData.items?.[0]?.file_path) throw new Error(uploadData.message || uploadData.error || "No se pudo preparar la carga en Magic Hour.");
+    const imageAsset = uploadData.items[0];
+    const imagePut = await fetch(imageAsset.upload_url, { method: "PUT", headers: { "Content-Type": imageFile.mimetype }, body: imageFile.buffer, signal: AbortSignal.timeout(60000) });
+    if (!imagePut.ok) throw new Error("No se pudo subir la imagen a Magic Hour (HTTP " + imagePut.status + ").");
+    let created;
+    if (audioFile) {
+      const audioAsset = uploadData.items[1];
+      if (!audioAsset?.upload_url || !audioAsset?.file_path) throw new Error("Magic Hour no devolvió el espacio para subir la canción.");
+      const audioPut = await fetch(audioAsset.upload_url, { method: "PUT", headers: { "Content-Type": audioFile.mimetype }, body: audioFile.buffer, signal: AbortSignal.timeout(120000) });
+      if (!audioPut.ok) throw new Error("No se pudo subir la canción a Magic Hour (HTTP " + audioPut.status + ").");
+      const createResponse = await fetch(MAGIC_HOUR_API + "/v1/audio-to-video", {
+        method: "POST", headers,
+        body: JSON.stringify({ name: "DJ SEBAS AI VIDEO con música", start_seconds: 0, end_seconds: duration, resolution: "480p", style: { prompt: prompt + " Genera visuales y movimientos de baile que reaccionen a la música cargada y acompasen la energía visual al ritmo. La sincronía es generativa y no garantiza coreografía exacta." }, assets: { audio_file_path: audioAsset.file_path, image_file_path: imageAsset.file_path } }),
+        signal: AbortSignal.timeout(60000)
+      });
+      created = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok || !created.id) { const message = created.message || created.error || "Magic Hour respondió HTTP " + createResponse.status; return res.status(createResponse.status === 402 ? 402 : createResponse.status === 401 ? 401 : 502).json({ error: message }); }
+    } else {
+      const createResponse = await fetch(MAGIC_HOUR_API + "/v1/image-to-video", { method: "POST", headers, body: JSON.stringify({ name: "DJ SEBAS AI VIDEO", end_seconds: duration, model: "ltx-2.5", resolution: "480p", audio: true, style: { prompt }, assets: { image_file_path: imageAsset.file_path } }), signal: AbortSignal.timeout(60000) });
+      created = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok || !created.id) { const message = created.message || created.error || "Magic Hour respondió HTTP " + createResponse.status; return res.status(createResponse.status === 402 ? 402 : createResponse.status === 401 ? 401 : 502).json({ error: message }); }
     }
-    const asset = uploadData.items[0];
-    const putResponse = await fetch(asset.upload_url, {
-      method: "PUT",
-      headers: { "Content-Type": req.file.mimetype },
-      body: req.file.buffer,
-      signal: AbortSignal.timeout(60000)
-    });
-    if (!putResponse.ok) throw new Error(`No se pudo subir la imagen a Magic Hour (HTTP ${putResponse.status}).`);
-
-    // Crear generación image-to-video (sujeto a la disponibilidad y créditos del proveedor).
-    const createResponse = await fetch(`${MAGIC_HOUR_API}/v1/image-to-video`, {
-      method: "POST", headers,
-      body: JSON.stringify({
-        name: "DJ SEBAS AI VIDEO",
-        end_seconds: duration,
-        model: "ltx-2.5",
-        resolution: "480p",
-        audio: true,
-        style: { prompt },
-        assets: { image_file_path: asset.file_path }
-      }),
-      signal: AbortSignal.timeout(60000)
-    });
-    const created = await createResponse.json().catch(() => ({}));
-    if (!createResponse.ok || !created.id) {
-      const message = created.message || created.error || `Magic Hour respondió HTTP ${createResponse.status}`;
-      const status = createResponse.status === 402 ? 402 : createResponse.status === 401 ? 401 : 502;
-      return res.status(status).json({ error: message });
-    }
-
     // 3) Consultar el proyecto hasta que esté listo.
     let video = null;
     const deadline = Date.now() + 240000;
@@ -184,7 +173,7 @@ app.use((err, _req, res, _next) => {
   console.error("REQUEST_ERROR", String(err?.message || err));
   res.status(err?.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
     error: err?.code === "LIMIT_FILE_SIZE"
-      ? "La fotografía supera el máximo de 3.5 MB que acepta Magic Hour."
+      ? "El archivo supera el máximo de 25 MB. Usa una imagen o canción más ligera."
       : err.message || "No se pudo procesar la solicitud."
   });
 });
