@@ -141,7 +141,7 @@ app.post("/api/generate", upload.fields([{ name: "image", maxCount: 1 }, { name:
       body: JSON.stringify({
         model: OPENAI_MODEL, max_output_tokens: 350,
         input: [{ role: "user", content: [
-          { type: "input_text", text: "Eres director de movimiento de DJ SEBAS AI VIDEO. Analiza la fotografía y crea un prompt para un clip image-to-video de " + clipDuration + " segundos, que pueda repetirse en bucle sin salto brusco. Estilo: " + style + ". Instrucción del usuario: " + (userPrompt || "persona bailando con energía y movimientos naturales"). " +
+          { type: "input_text", text: "Eres director de movimiento de DJ SEBAS AI VIDEO. Analiza la fotografía y crea un prompt para un clip image-to-video de " + clipDuration + " segundos, que pueda repetirse en bucle sin salto brusco. Estilo: " + style + ". Instrucción del usuario: " + (userPrompt || "persona bailando con energía y movimientos naturales") + ". " +
           "Conserva la identidad, cara, ropa y número de personas. Describe pasos de baile rítmicos, movimiento corporal natural, cámara estable y fondo. No afirmes que escuchaste la canción; la sincronización final se hará al montar el clip con el audio. Devuelve solo el prompt visual." },
           { type: "input_image", image_url: imageData, detail: "high" }
         ] }]
