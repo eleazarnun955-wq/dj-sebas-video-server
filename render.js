@@ -68,7 +68,8 @@ async function runFfmpeg(args) {
 async function makeWanClip(imageFile, prompt, duration) {
   const form = new FormData();
   form.append("files", new Blob([imageFile.buffer], { type: imageFile.mimetype }), imageFile.originalname || "photo.png");
-  const up = await fetch(HF_SPACE + "/gradio_api/upload", { method: "POST", body: form, signal: AbortSignal.timeout(60000) });
+  const hfHeaders = process.env.HF_TOKEN ? { Authorization: "Bearer " + process.env.HF_TOKEN } : {};
+  const up = await fetch(HF_SPACE + "/gradio_api/upload", { method: "POST", headers: hfHeaders, body: form, signal: AbortSignal.timeout(60000) });
   if (!up.ok) throw new Error("El motor de video no recibió la fotografía (HTTP " + up.status + ").");
   const paths = await up.json();
   if (!Array.isArray(paths) || !paths[0]) throw new Error("El motor de video no devolvió la fotografía cargada.");
@@ -91,7 +92,7 @@ async function makeWanClip(imageFile, prompt, duration) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const start = await fetch(HF_SPACE + "/gradio_api/call/generate_video", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...hfHeaders },
         body: JSON.stringify({ data }), signal: AbortSignal.timeout(60000)
       });
       if (!start.ok) {
@@ -102,7 +103,7 @@ async function makeWanClip(imageFile, prompt, duration) {
       const created = await start.json();
       if (!created.event_id) throw new Error("Wan 2.2 no devolvió el identificador de generación.");
       const result = await fetch(HF_SPACE + "/gradio_api/call/generate_video/" + encodeURIComponent(created.event_id), {
-        headers: { Accept: "text/event-stream" }, signal: AbortSignal.timeout(5 * 60 * 1000)
+        headers: { Accept: "text/event-stream", ...hfHeaders }, signal: AbortSignal.timeout(5 * 60 * 1000)
       });
       if (!result.ok || !result.body) {
         const message = "No se pudo consultar el resultado de Wan 2.2 (HTTP " + result.status + ").";
