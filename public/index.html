@@ -30,5 +30,48 @@ const $=id=>document.getElementById(id);let selected=null,selectedAudio=null;
 $("image").addEventListener("change",e=>{selected=e.target.files[0];if(!selected)return;if(selected.size>25*1024*1024){alert("La fotografía supera 25 MB.");e.target.value="";selected=null;return;}const url=URL.createObjectURL(selected);$("preview").src=url;$("preview").style.display="block";});
 $("audio").addEventListener("change",e=>{selectedAudio=e.target.files[0];if(!selectedAudio)return;if(selectedAudio.size>25*1024*1024){alert("La canción supera 25 MB.");e.target.value="";selectedAudio=null;return;}const url=URL.createObjectURL(selectedAudio);$("audioPreview").src=url;$("audioPreview").style.display="block";});
 fetch("/api/status").then(r=>r.json()).then(d=>{$("server").textContent=d.status==="online"?(d.openaiConfigured?"Servidor conectado · GPT configurado":"Servidor conectado · falta OPENAI_API_KEY"):"Servidor no disponible";}).catch(()=>$("server").textContent="No se pudo comprobar el servidor");
-$("form").addEventListener("submit",async e=>{e.preventDefault();if(!selected)return;const btn=$("submit"),msg=$("message");btn.disabled=true;btn.textContent="GENERANDO…";msg.style.display="block";msg.textContent="Enviando foto"+(selectedAudio?" y canción":"")+" al servidor… No cierres esta pantalla.";const data=new FormData();data.append("image",selected);if(selectedAudio)data.append("audio",selectedAudio);data.append("prompt",$("prompt").value);data.append("style",$("style").value);data.append("duration",$("duration").value);try{const r=await fetch("/api/generate",{method:"POST",body:data});const raw=await r.text();let out;try{out=JSON.parse(raw);}catch{throw new Error("El servidor devolvió una respuesta inesperada. Revisa el estado del servicio.");}if(!r.ok||!out.ok)throw new Error(out.error||"No se pudo generar el video.");msg.textContent="¡Video terminado! "+out.message;const player=document.createElement("video");player.controls=true;player.playsInline=true;player.src=out.videoUrl;player.className="result-video";const link=document.createElement("a");link.href=out.videoUrl;link.download="DJ-SEBAS-AI-VIDEO.mp4";link.textContent="⬇ Descargar mi video";link.className="download";msg.appendChild(player);msg.appendChild(document.createElement("br"));msg.appendChild(link);}catch(err){msg.textContent=err.message||"No se pudo conectar. Intenta nuevamente.";}finally{btn.disabled=false;btn.textContent="GENERAR MI VIDEO";}});
+$("form").addEventListener("submit",async e=>{
+ e.preventDefault();
+ if(!selected)return;
+ const btn=$("submit"),msg=$("message");
+ btn.disabled=true;btn.textContent="PREPARANDO…";msg.style.display="block";
+ msg.textContent="Subiendo tu fotografía"+(selectedAudio?" y canción":"")+"…";
+ const data=new FormData();data.append("image",selected);
+ if(selectedAudio)data.append("audio",selectedAudio);
+ data.append("prompt",$("prompt").value);data.append("style",$("style").value);data.append("duration",$("duration").value);
+ try{
+  const startResponse=await fetch("/api/generate",{method:"POST",body:data});
+  const startRaw=await startResponse.text();let started;
+  try{started=JSON.parse(startRaw);}catch{throw new Error("El servidor no pudo iniciar el trabajo. Comprueba que Render esté activo e inténtalo otra vez.");}
+  if(!startResponse.ok||!started.jobId)throw new Error(started.error||"No se pudo iniciar la generación.");
+  msg.textContent="Solicitud recibida. "+(started.message||"La generación comenzó.");
+  btn.textContent="GENERANDO…";
+  let finished=null,attempts=0,networkErrors=0;
+  while(attempts<360){
+   await new Promise(resolve=>setTimeout(resolve,2500));attempts++;
+   let poll;
+   try{
+    const response=await fetch(started.statusUrl||("/api/jobs/"+started.jobId),{cache:"no-store"});
+    const raw=await response.text();
+    try{poll=JSON.parse(raw);}catch{throw new Error("Respuesta de avance ilegible.");}
+    if(!response.ok)throw new Error(poll.error||"No se pudo consultar el avance.");
+    networkErrors=0;
+   }catch(err){
+    networkErrors++;
+    if(networkErrors>=5)throw new Error("Se perdió la conexión con el servidor al consultar el avance. Espera un momento y vuelve a abrir la aplicación.");
+    msg.textContent="La generación sigue en proceso. Reconectando con el servidor…";
+    continue;
+   }
+   msg.textContent=poll.message||"Generando tu video…";
+   if(poll.status==="completed"){finished=poll;break;}
+   if(poll.status==="failed")throw new Error(poll.error||"El motor no pudo generar el video.");
+  }
+  if(!finished)throw new Error("La generación tardó más de 15 minutos. Revisa el servicio e inténtalo de nuevo.");
+  msg.textContent="¡Video terminado! "+finished.message;
+  const player=document.createElement("video");player.controls=true;player.playsInline=true;player.src=finished.videoUrl;player.className="result-video";
+  const link=document.createElement("a");link.href=finished.videoUrl;link.download="DJ-SEBAS-AI-VIDEO.mp4";link.textContent="⬇ Descargar mi video";link.className="download";
+  msg.appendChild(player);msg.appendChild(document.createElement("br"));msg.appendChild(link);
+ }catch(err){msg.textContent=err.message||"No se pudo conectar. Intenta nuevamente.";}
+ finally{btn.disabled=false;btn.textContent="GENERAR MI VIDEO";}
+});
 </script></body></html>
