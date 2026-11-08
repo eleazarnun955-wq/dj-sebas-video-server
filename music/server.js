@@ -165,7 +165,7 @@ function buildAcePayload(client, endpointName, overrides = {}) {
         }
       }
     }
-    payload[name] = override === undefined ? value : override;
+    payload.push(override === undefined ? value : override);
   });
   return payload;
 }
@@ -229,7 +229,7 @@ async function runAceGeneration(job, input) {
         top_p: 1,
         debug: false
       });
-      const sample = await client.predict("/handle_create_sample_wrapper", samplePayload);
+      const sample = await client.predict("/handle_create_sample_wrapper", ...samplePayload);
       const data = sample?.data || [];
       if (typeof data[0] === "string" && data[0].trim()) caption = data[0];
       if (typeof data[1] === "string" && data[1].trim()) lyrics = data[1];
@@ -276,14 +276,14 @@ async function runAceGeneration(job, input) {
     param_44: false
   };
   const payload = buildAcePayload(client, "/generation_wrapper", generationOverrides);
-  if (!Object.keys(payload).length || Object.values(payload).some((value) => value === undefined)) {
+  if (!Array.isArray(payload) || !payload.length || payload.some((value) => value === undefined)) {
     throw new Error("ACE-Step devolvió una definición de generación incompleta. Actualiza el Space e inténtalo de nuevo.");
   }
-  console.log("[ACE-STEP PAYLOAD READY]", Object.keys(payload).length, Object.keys(payload).slice(0, 12));
+  console.log("[ACE-STEP POSITIONAL PAYLOAD READY]", payload.length, "arguments");
 
   job.status = "queued";
   job.message = "Solicitud enviada a la cola gratuita de Hugging Face…";
-  const submission = client.submit("/generation_wrapper", payload);
+  const submission = client.submit("/generation_wrapper", ...payload);
   let lastData = null;
   for await (const message of submission) {
     if (message.type === "status") {
