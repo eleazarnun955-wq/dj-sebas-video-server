@@ -31,60 +31,6 @@ app.use("/downloads", express.static(outDir, { fallthrough: false, maxAge: "1h" 
 
 const ACE_STEP_SPACE = "https://ace-step-ace-step-v1-5.hf.space";
 
-app.get("/api/ace-step/schema", async (_req, res) => {
-  try {
-    const response = await fetch(ACE_STEP_SPACE + "/gradio_api/openapi.json", {
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(15000)
-    });
-    if (!response.ok) return res.status(502).json({
-      ok: false, error: "ACE-Step no entregó su especificación de API.",
-      upstreamStatus: response.status
-    });
-    const spec = await response.json();
-    let apiInfo = null;
-    try {
-      const infoResponse = await fetch(ACE_STEP_SPACE + "/gradio_api/info", {
-        headers: { "Accept": "application/json" },
-        signal: AbortSignal.timeout(10000)
-      });
-      if (infoResponse.ok) apiInfo = await infoResponse.json();
-    } catch {}
-    const paths = Object.entries(spec.paths || {}).map(([route, methods]) => ({
-      route,
-      methods: Object.keys(methods || {})
-    }));
-    const endpoints = Object.entries(apiInfo?.named_endpoints || {}).map(([name, value]) => ({
-      name,
-      parameters: (value.parameters || []).map(p => ({
-        label: p.label || p.parameter_name || "",
-        type: p.type?.type || p.type || "",
-        parameter_name: p.parameter_name || ""
-      }))
-    }));
-    let generationInputs = [];
-    try {
-      const configResponse = await fetch(ACE_STEP_SPACE + "/config", {
-        headers: { "Accept": "application/json" },
-        signal: AbortSignal.timeout(10000)
-      });
-      if (configResponse.ok) {
-        const config = await configResponse.json();
-        const dep = (config.dependencies || []).find(d => String(d.api_name || "").replace(/^\//, "") === "generation_wrapper");
-        const byId = new Map((config.components || []).map(c => [c.id, c]));
-        if (dep) generationInputs = (dep.inputs || []).map(id => {
-          const c = byId.get(id) || {};
-          return { id, type: c.type || "", label: c.props?.label || "", value: c.props?.value ?? null };
-        });
-      }
-    } catch {}
-    console.log("[ACE-STEP DISCOVERY]", JSON.stringify({ paths, endpoints: endpoints.filter(e => e.name.includes("generation_wrapper") || e.name.includes("create_sample")), generationInputs }));
-    res.json({ ok: true, title: spec.info?.title || "ACE-Step", paths, endpoints, generationInputs });
-  } catch (error) {
-    res.status(502).json({ ok: false, error: "No se pudo consultar la API pública de ACE-Step.", detail: error.message });
-  }
-});
-
 app.get("/api/status", (_req, res) => res.json({
   status: "online",
   app: "DJ SEBAS AI MUSIC",
@@ -396,4 +342,4 @@ app.use((err,_req,res,_next)=>{
 });
 
 const port=process.env.PORT||3000;
-app.listen(port,"0.0.0.0",()=>{ console.log("DJ SEBAS AI MUSIC activo en puerto "+port); setTimeout(()=>fetch("http://127.0.0.1:"+port+"/api/ace-step/schema").catch(error=>console.log("[ACE-STEP DISCOVERY ERROR]",error.message)),1500); });
+app.listen(port,"0.0.0.0",()=>{ console.log("DJ SEBAS AI MUSIC activo en puerto "+port); setTimeout(async()=>{ try { const client=await getAceClient(); const info=await client.view_api(); const endpoints=Object.keys(info.named_endpoints||{}); console.log("[ACE-STEP CLIENT READY]",JSON.stringify(endpoints.filter(x=>x.includes("generation_wrapper")||x.includes("create_sample")))); } catch(error) { console.log("[ACE-STEP CLIENT ERROR]",error.message); } },1500); });
