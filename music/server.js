@@ -265,56 +265,38 @@ async function runAceGeneration(job, input) {
     }
   }
 
+  if (input.instrumental && !/instrumental|sin voces|no vocals/i.test(caption)) {
+    caption += " Instrumental, sin voces ni letra.";
+  }
   const generationOverrides = {
-    generation_mode: "Custom",
+    generation_mode: "custom",
     simple_query_input: "",
     simple_vocal_language: language,
     param_4: caption,
     param_5: input.instrumental ? "" : lyrics,
-    param_6: bpm,
+    param_6: bpm || 0,
     param_7: keyScale,
     param_8: timeSignature,
     param_9: language,
     param_10: 8,
     param_11: 7,
     param_12: true,
-    param_13: -1,
-    param_14: null,
+    param_13: "-1",
     param_15: duration,
     param_16: 1,
-    param_17: null,
-    param_18: "",
-    param_19: 0,
-    param_20: -1,
     param_23: "text2music",
-    param_28: 3,
-    param_29: "ode",
-    param_30: "",
-    param_31: "mp3",
-    param_32: 0.85,
-    param_33: true,
-    param_34: 2,
-    param_35: 50,
-    param_36: 1,
-    param_37: "NO USER INPUT",
-    param_38: true,
-    param_39: true,
-    param_40: true,
+    param_27: 3,
+    param_28: "ode",
+    param_29: "",
+    param_30: "mp3",
+    param_31: 0.85,
+    param_32: true,
+    param_33: 2,
+    param_36: "NO USER INPUT",
     param_41: false,
-    param_42: false,
     param_43: false,
-    param_44: false,
-    param_45: 1,
-    param_46: 1,
-    param_47: String(input.title || "DJ SEBAS AI MUSIC"),
-    param_48: [],
-    param_49: true
+    param_44: false
   };
-  if (input.instrumental) {
-    generationOverrides.instrumental = true;
-    generationOverrides["instrumental"] = true;
-  }
-
   const payload = buildAcePayload(client, "/generation_wrapper", generationOverrides);
   if (apiInfo.named_endpoints?.["/generation_wrapper"]?.parameters?.length !== Object.keys(payload).length) {
     throw new Error("La interfaz de ACE-Step cambió y no se pudieron preparar los parámetros de generación.");
