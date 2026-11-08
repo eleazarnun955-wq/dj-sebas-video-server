@@ -3,11 +3,10 @@ name: Build DJ SEBAS MIX STUDIO APK
 on:
   workflow_dispatch:
   push:
-    paths:
-      - "music/**"
-      - ".github/workflows/music-android.yml"
     branches:
       - dj-sebas-ai-music
+    paths:
+      - "music/**"
 
 permissions:
   contents: read
@@ -25,8 +24,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: music/package-lock.json
       - name: Install dependencies
         run: npm install
       - name: Create Android project
