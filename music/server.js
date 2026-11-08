@@ -116,7 +116,7 @@ function buildAcePayload(client, endpointName, overrides = {}) {
   const dependency = dependencies.find(d => String(d.api_name || "").replace(/^\//, "") === normalizedName);
   const componentMap = new Map((config.components || []).map(c => [c.id, c]));
   const visibleInputs = dependency
-    ? (dependency.inputs || []).map(id => componentMap.get(id)).filter(c => c && String(c.type || "").toLowerCase() !== "state")
+    ? (dependency.inputs || []).map(id => componentMap.get(id)).filter(Boolean)
     : [];
 
   const payload = [];
