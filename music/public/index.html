@@ -1,31 +1,80 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#090b16"><title>DJ SEBAS AI MUSIC</title>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090b16"><meta name="description" content="Estudio musical DJ SEBAS AI MUSIC: crea canciones con IA y mezcla tus pistas.">
+<title>DJ SEBAS AI MUSIC</title>
 <style>
-:root{color-scheme:dark;--bg:#090b16;--panel:#151a2d;--line:#303754;--gold:#f4c45e;--muted:#aab1c8}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#29264b 0,#090b16 58%);font-family:system-ui,Arial;color:#f8f8fc;min-height:100vh}
-main{width:min(980px,100%);margin:auto;padding:24px 16px 48px}.brand{text-align:center;margin:12px 0 25px}.logo{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#f8d77b,#a56b18);color:#111;font-size:25px;font-weight:950}.brand h1{font-size:clamp(26px,6vw,40px);letter-spacing:1px;margin:12px 0 3px}.brand p{margin:0;color:var(--muted)}.status{font-size:13px;color:#c8cee2;margin:0 0 15px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#55d69b;margin-right:8px}.tabs{display:flex;gap:8px;margin:0 0 14px}.tab{flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 8px;background:#11162a;color:#dce1f2;font-weight:750}.tab.active{background:linear-gradient(90deg,#f7d47d,#d89a36);color:#17120a;border-color:transparent}.panel{background:#151a2deb;border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 18px 50px #0005}.section{display:none}.section.active{display:block}h2{margin:0 0 8px;font-size:21px}.muted,.hint{color:var(--muted);font-size:13px;line-height:1.55}.launch{display:block;text-align:center;text-decoration:none;padding:15px;border-radius:13px;background:linear-gradient(90deg,#f7d47d,#d89a36);color:#17120a;font-weight:900;margin:16px 0}.frame{width:100%;height:740px;border:1px solid var(--line);border-radius:14px;background:#0b1020}.drop{display:block;border:1.5px dashed #59617e;border-radius:14px;padding:18px;text-align:center;background:#0c1020;margin:12px 0;cursor:pointer}.drop strong{display:block;margin:4px}.drop small{color:var(--muted)}input[type=file]{display:none}label.field{display:block;margin:16px 0 7px;font-weight:700}select{width:100%;padding:12px;border-radius:11px;border:1px solid var(--line);background:#0c1020;color:#fff;font:inherit}.go{width:100%;padding:14px;border:0;border-radius:12px;background:linear-gradient(90deg,#f7d47d,#d89a36);color:#17120a;font-weight:900;font-size:15px;margin-top:12px}.go:disabled{opacity:.55}.msg{display:none;background:#0b1020;border-radius:10px;padding:12px;margin-top:12px;white-space:pre-wrap}.download{display:inline-block;color:var(--gold);font-weight:800;margin-top:10px}.audio{width:100%;margin-top:10px}.foot{text-align:center;color:#777f9b;font-size:12px;margin-top:18px}@media(max-width:600px){.panel{padding:14px}.frame{height:650px}.tabs{gap:5px}.tab{font-size:12px;padding:11px 5px}}
-</style></head><body><main>
+:root{color-scheme:dark;--bg:#090b16;--panel:#151a2d;--line:#303754;--gold:#f4c45e;--muted:#aab1c8;--ink:#17120a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#29264b 0,#090b16 58%);font-family:system-ui,Arial,sans-serif;color:#f8f8fc;min-height:100vh}
+main{width:min(980px,100%);margin:auto;padding:22px 15px 45px}.brand{text-align:center;margin:10px 0 20px}.logo{display:inline-grid;place-items:center;width:62px;height:62px;border-radius:19px;background:linear-gradient(135deg,#f8d77b,#a56b18);color:#111;font-size:25px;font-weight:950}.brand h1{font-size:clamp(26px,6vw,40px);letter-spacing:1px;margin:10px 0 3px}.brand p{margin:0;color:var(--muted)}.status{font-size:13px;color:#c8cee2;margin:0 0 15px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#55d69b;margin-right:8px}
+.tabs{display:flex;gap:8px;margin:0 0 14px}.tab{flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 8px;background:#11162a;color:#dce1f2;font-weight:750}.tab.active{background:linear-gradient(90deg,#f7d47d,#d89a36);color:var(--ink);border-color:transparent}.panel{background:#151a2deb;border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 18px 50px #0005}.section{display:none}.section.active{display:block}h2{margin:0 0 8px;font-size:21px}.muted,.hint{color:var(--muted);font-size:13px;line-height:1.55}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:block;margin:14px 0 6px;font-weight:700;font-size:14px}input[type=text],input[type=number],textarea,select{width:100%;padding:12px;border-radius:11px;border:1px solid var(--line);background:#0c1020;color:#fff;font:inherit}textarea{min-height:112px;resize:vertical}.choice{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#0c1020;margin-top:12px;font-size:14px}.go,.launch{display:block;text-align:center;text-decoration:none;padding:14px;border:0;border-radius:13px;background:linear-gradient(90deg,#f7d47d,#d89a36);color:var(--ink);font-weight:900;margin:14px 0 0;cursor:pointer}.go:disabled{opacity:.55}.secondary{display:block;width:100%;text-align:center;padding:13px;border:1px solid var(--line);border-radius:12px;background:#10162a;color:#f3d27d;font-weight:800;margin-top:10px;cursor:pointer}.drop{display:block;border:1.5px dashed #59617e;border-radius:14px;padding:17px;text-align:center;background:#0c1020;margin:12px 0;cursor:pointer}.drop strong{display:block;margin:4px}.drop small{color:var(--muted)}input[type=file]{display:none}.rangeRow{display:flex;align-items:center;gap:12px}.rangeRow input{flex:1;accent-color:#f4c45e}.msg{display:none;background:#0b1020;border-radius:10px;padding:12px;margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}.download{display:inline-block;color:var(--gold);font-weight:800;margin-top:10px}.audio{width:100%;margin-top:10px}.foot{text-align:center;color:#777f9b;font-size:12px;margin-top:18px}.notice{border:1px solid #66522d;background:#241d13;border-radius:12px;padding:12px;color:#f3dba3;font-size:13px;line-height:1.5;margin-top:12px}
+@media(max-width:600px){.panel{padding:14px}.tabs{gap:5px}.tab{font-size:12px;padding:11px 5px}.grid{grid-template-columns:1fr}}
+</style></head>
+<body><main>
 <header class="brand"><div class="logo">DS</div><h1>DJ SEBAS AI MUSIC</h1><p>Tu estudio musical con inteligencia artificial</p></header>
 <div class="status"><span class="dot"></span><span id="status">Conectando con el servidor…</span></div>
-<nav class="tabs"><button class="tab active" data-tab="create">Crear música</button><button class="tab" data-tab="mix">Mashup / Remix</button></nav>
+<nav class="tabs" aria-label="Herramientas"><button class="tab active" data-tab="create" type="button">Crear canción</button><button class="tab" data-tab="mix" type="button">Mashup / Remix</button></nav>
 <section class="panel">
-<div id="create" class="section active"><h2>🎙️ Crea una canción desde cero</h2><p class="muted">ACE-Step 1.5 genera música original, instrumentales y canciones con letra en distintos idiomas y géneros.</p>
-<a class="launch" href="https://huggingface.co/spaces/ACE-Step/Ace-Step-v1.5" target="_blank" rel="noopener">ABRIR ACE-STEP 1.5 EN HUGGING FACE ↗</a>
-<p class="hint">También puedes probar el estudio integrado aquí abajo. Si no carga en tu teléfono, usa el botón de arriba para abrirlo directamente. Inicia sesión en Hugging Face para aprovechar la cuota gratuita de tu cuenta.</p>
-<iframe class="frame" src="https://ace-step-ace-step-v1-5.hf.space" title="ACE-Step 1.5"></iframe>
-<p class="hint">La disponibilidad y el tiempo de GPU dependen de Hugging Face. La cuota gratuita no es ilimitada; puede haber espera o límites diarios.</p>
+<div id="create" class="section active">
+<h2>🎙️ Crea una canción desde cero</h2><p class="muted">Prepara tu idea musical y continúa en ACE-Step 1.5, el motor de generación gratuito de código abierto.</p>
+<div class="grid">
+<div><label class="field" for="genre">Ritmo / género</label><select id="genre"><option>Cumbia sonidera</option><option>Cumbia norteña</option><option>Banda sinaloense</option><option>Norteño sax</option><option>Corridos tumbados</option><option>Reggaetón</option><option>Electrónica / EDM</option><option>Salsa</option><option>Bachata</option><option>Rock</option><option>Pop latino</option><option>Regional mexicano</option><option>Otro / mezcla de géneros</option></select></div>
+<div><label class="field" for="mood">Ambiente</label><select id="mood"><option>Fiestero y bailable</option><option>Romántico</option><option>Triste y sentimental</option><option>Enérgico y poderoso</option><option>Oscuro y misterioso</option><option>Alegre y divertido</option><option>Épico y cinematográfico</option></select></div>
+<div><label class="field" for="voice">Voz</label><select id="voice"><option>Voz masculina</option><option>Voz femenina</option><option>Dueto hombre y mujer</option><option>Coros grupales</option><option>Instrumental, sin voz</option></select></div>
+<div><label class="field" for="language">Idioma</label><select id="language"><option>Español</option><option>Inglés</option><option>Portugués</option><option>Francés</option><option>Japonés</option><option>Otro</option></select></div>
+<div><label class="field" for="bpm">Velocidad (BPM)</label><input id="bpm" type="number" min="30" max="300" value=" tan "></div>
+<div><label class="field" for="duration">Duración aproximada</label><select id="duration"><option value="120">2 minutos</option><option value="180" selected>3 minutos</option><option value="240">4 minutos</option><option value="300">5 minutos</option></select></div>
 </div>
-<div id="mix" class="section"><h2>🎚️ Crea tu mashup</h2><p class="muted">Combina dos pistas al mismo tiempo o colócalas una después de otra. Sube únicamente audio que tengas derecho a utilizar.</p>
+<label class="field" for="idea">¿De qué tratará la canción?</label><input id="idea" type="text" placeholder="Ej. una fiesta, un amor perdido, mi barrio, una historia divertida">
+<label class="field" for="lyrics">Letra (opcional)</label><textarea id="lyrics" placeholder="Escribe tu letra aquí. Si la dejas vacía, puedes pedir que la IA proponga una."></textarea>
+<label class="choice"><input id="instrumental" type="checkbox"> Quiero solo música instrumental, sin voz</label>
+<button class="go" id="buildPrompt" type="button">PREPARAR MI CANCIÓN</button>
+<label class="field" for="prompt">Descripción lista para el generador</label><textarea id="prompt" placeholder="Aquí aparecerá tu descripción musical…" readonly></textarea>
+<button class="secondary" id="copyPrompt" type="button">COPIAR DESCRIPCIÓN</button>
+<a class="launch" href="https://huggingface.co/spaces/ACE-Step/Ace-Step-v1.5" target="_blank" rel="noopener noreferrer">ABRIR GENERADOR ACE-STEP 1.5 ↗</a>
+<div class="notice">Importante: la generación de audio ocurre en el Space oficial de Hugging Face, no dentro de Render. Copia la descripción, abre ACE-Step y pégala en “Song Description”. La cuota gratuita depende de la disponibilidad de GPU y puede haber cola.</div>
+</div>
+<div id="mix" class="section">
+<h2>🎚️ Crea tu mashup</h2><p class="muted">Mezcla dos canciones al mismo tiempo o únelas una después de otra. Usa solo audio que tengas derecho a utilizar.</p>
 <form id="mixForm">
-<label class="drop" for="trackA">♫ <strong>Selecciona la canción 1</strong><small>MP3, WAV, M4A, AAC, FLAC u OGG · máximo 40 MB</small></label><input id="trackA" type="file" accept="audio/*" required>
-<label class="drop" for="trackB">♫ <strong>Selecciona la canción 2</strong><small>MP3, WAV, M4A, AAC, FLAC u OGG · máximo 40 MB</small></label><input id="trackB" type="file" accept="audio/*" required>
+<label class="drop" for="trackA">♫ <strong id="nameA">Selecciona la canción 1</strong><small>MP3, WAV, M4A, AAC, FLAC u OGG · máximo 40 MB</small></label><input id="trackA" type="file" accept="audio/*" required>
+<label class="drop" for="trackB">♫ <strong id="nameB">Selecciona la canción 2</strong><small>MP3, WAV, M4A, AAC, FLAC u OGG · máximo 40 MB</small></label><input id="trackB" type="file" accept="audio/*" required>
 <label class="field" for="mode">Tipo de mezcla</label><select id="mode"><option value="overlay">Mashup: reproducir las dos canciones juntas</option><option value="sequential">Unir: canción 1 y después canción 2</option></select>
-<button class="go" id="mixButton">CREAR MASHUP</button><div class="msg" id="mixMessage"></div>
+<label class="field" for="blend">Balance de volumen de la canción 2</label><div class="rangeRow"><input id="blend" type="range" min="0" max="100" value="50"><strong id="blendValue">50%</strong></div>
+<button class="go" id="mixButton" type="submit">CREAR MASHUP</button><div class="msg" id="mixMessage" role="status" aria-live="polite"></div>
 </form></div>
-</section><div class="foot">DJ SEBAS AI MUSIC · ACE-Step 1.5 · Proyecto independiente de DJ SEBAS AI VIDEO</div></main>
+</section><div class="foot">DJ SEBAS AI MUSIC · Proyecto independiente de DJ SEBAS AI VIDEO</div></main>
 <script>
 const $=id=>document.getElementById(id);
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===b.dataset.tab));}));
-fetch("/api/status").then(r=>r.json()).then(d=>{$("status").textContent=d.status==="online"?"Servidor conectado · ACE-Step 1.5 + herramientas de audio":"Servidor no disponible";}).catch(()=>$("status").textContent="No se pudo comprobar el servidor");
-$("mixForm").addEventListener("submit",async e=>{e.preventDefault();const a=$("trackA").files[0],b=$("trackB").files[0],msg=$("mixMessage"),btn=$("mixButton");if(!a||!b)return;if(a.size>40*1024*1024||b.size>40*1024*1024){msg.style.display="block";msg.textContent="Cada canción debe pesar menos de 40 MB.";return;}const data=new FormData();data.append("trackA",a);data.append("trackB",b);data.append("mode",$("mode").value);btn.disabled=true;btn.textContent="PROCESANDO…";msg.style.display="block";msg.textContent="Mezclando tus canciones…";try{const r=await fetch("/api/mashup",{method:"POST",body:data});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo crear la mezcla.");msg.textContent="¡Tu mezcla está lista!";const audio=document.createElement("audio");audio.controls=true;audio.src=d.url;audio.className="audio";const link=document.createElement("a");link.href=d.url;link.download=d.filename;link.textContent="⬇ Descargar mashup";link.className="download";msg.append(audio,document.createElement("br"),link);}catch(err){msg.textContent=err.message;}finally{btn.disabled=false;btn.textContent="CREAR MASHUP";}});
+fetch("/api/status").then(r=>{if(!r.ok)throw new Error("status");return r.json()}).then(d=>{$("status").textContent=d.status==="online"?"Servidor conectado · herramientas de audio listas":"Servidor no disponible";}).catch(()=>$("status").textContent="Servidor iniciando; vuelve a cargar en unos segundos");
+$("buildPrompt").addEventListener("click",()=>{
+ const instrumental=$("instrumental").checked||$("voice").value.startsWith("Instrumental");
+ const idea=$("idea").value.trim()||"una canción original con una historia memorable";
+ const bpm=Math.min(300,Math.max(30,Number($("bpm").value)||120));
+ const parts=[`Canción original de ${$("genre").value}, ambiente ${$("mood").value.toLowerCase()}, idioma ${$("language").value}, tempo ${bpm} BPM, duración aproximada ${$("duration").selectedOptions[0].text}.`,instrumental?"Instrumental, sin voces ni letra.":"Interpretación con "+$("voice").value.toLowerCase()+".", "Tema: "+idea+".", "Producción profesional, melodía memorable, estructura completa con introducción, estrofas, coro, puente y final, mezcla limpia y sonido de estudio."];
+ $("prompt").value=parts.join(" ");
+ if($("lyrics").value.trim()) $("prompt").value += "\n\nLetra:\n"+$("lyrics").value.trim();
+ $("prompt").scrollIntoView({behavior:"smooth",block:"center"});
+});
+$("copyPrompt").addEventListener("click",async()=>{
+ const value=$("prompt").value;if(!value){$("buildPrompt").click();}
+ try{await navigator.clipboard.writeText($("prompt").value);$("copyPrompt").textContent="¡DESCRIPCIÓN COPIADA!";setTimeout(()=>$("copyPrompt").textContent="COPIAR DESCRIPCIÓN",1800);}
+ catch(e){$("prompt").focus();$("prompt").select();$("copyPrompt").textContent="Selecciona y copia el texto";setTimeout(()=>$("copyPrompt").textContent="COPIAR DESCRIPCIÓN",2200);}
+});
+["trackA","trackB"].forEach((id,i)=>$(id).addEventListener("change",()=>{const f=$(id).files[0];$("name"+(i?"B":"A")).textContent=f?f.name:"Selecciona la canción "+(i+1);}));
+$("blend").addEventListener("input",()=>$("blendValue").textContent=$("blend").value+"%");
+$("mode").addEventListener("change",()=>{const enabled=$("mode").value==="overlay";$("blend").disabled=!enabled;$("blendValue").style.opacity=enabled?"1":".45";});
+$("mixForm").addEventListener("submit",async e=>{
+ e.preventDefault();const a=$("trackA").files[0],b=$("trackB").files[0],msg=$("mixMessage"),btn=$("mixButton");
+ msg.style.display="block";msg.replaceChildren();
+ if(!a||!b){msg.textContent="Selecciona las dos canciones.";return;}
+ if(a.size>40*1024*1024||b.size>40*1024*1024){msg.textContent="Cada canción debe pesar menos de 40 MB.";return;}
+ const data=new FormData();data.append("trackA",a);data.append("trackB",b);data.append("mode",$("mode").value);data.append("blend",String(Number($("blend").value)/100));
+ btn.disabled=true;btn.textContent="PROCESANDO…";msg.textContent="Mezclando tus canciones. No cierres esta página…";
+ try{const r=await fetch("/api/mashup",{method:"POST",body:data});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo crear la mezcla.");
+ msg.textContent="¡Tu mezcla está lista!";const audio=document.createElement("audio");audio.controls=true;audio.src=d.url;audio.className="audio";const link=document.createElement("a");link.href=d.url;link.download=d.filename;link.textContent="⬇ Descargar mashup MP3";link.className="download";msg.append(audio,document.createElement("br"),link);
+ }catch(err){msg.textContent="Error: "+err.message;}finally{btn.disabled=false;btn.textContent="CREAR MASHUP";}
+});
 </script></body></html>
