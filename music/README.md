@@ -1,20 +1,21 @@
-# DJ SEBAS AI MUSIC
+# DJ SEBAS MIX STUDIO
 
-Independent music studio app, kept separate from DJ SEBAS AI VIDEO.
+A local two-deck DJ mixer for Android and modern browsers. No AI, Hugging Face, OpenAI, API keys, or cloud audio processing.
 
 ## Features
-- ACE-Step 1.5 official Hugging Face Space embedded/linked for original music generation.
-- Audio mashup: mix two uploaded tracks or concatenate them using FFmpeg.
-- Mobile-friendly Spanish interface.
+- Load two local audio files from the device (MP3, WAV, M4A, OGG, FLAC where supported by the browser).
+- Two independent decks with play/pause, cue-to-start, seek and mute.
+- Per-deck volume, low/mid/high EQ, and pitch/speed adjustment.
+- Crossfader and simultaneous playback.
+- Record the master mix to a WebM audio file when supported by the browser.
+- Audio files are selected and processed locally in the device browser/WebView; they are not uploaded to the server.
 
-## Run
+## Run the web version
 ```sh
 cd music
 npm install
 npm start
 ```
 
-## Hugging Face limits
-The public ACE-Step Space runs on ZeroGPU. Hugging Face documents limited daily GPU quotas for unauthenticated and free accounts; usage is not unlimited and queue/availability can vary. Log in to Hugging Face in the browser and use the official Space link if the embedded view does not preserve sign-in.
-
-Official Space: https://huggingface.co/spaces/ACE-Step/Ace-Step-v1.5
+## Build Android APK
+The GitHub Actions workflow `.github/workflows/music-android.yml` builds a debug APK for branch `dj-sebas-ai-music`. Download the artifact named `DJ-SEBAS-MIX-STUDIO-APK` from the completed workflow run.
