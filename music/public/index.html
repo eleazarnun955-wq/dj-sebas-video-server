@@ -50,7 +50,7 @@ main{width:min(980px,100%);margin:auto;padding:22px 15px 45px}.brand{text-align:
 <script>
 const $=id=>document.getElementById(id);
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===b.dataset.tab));}));
-fetch("/api/ace-step/schema").catch(()=>{});\nfetch("/api/status").then(r=>{if(!r.ok)throw new Error("status");return r.json()}).then(d=>{$("status").textContent=d.status==="online"?"Servidor conectado · herramientas de audio listas":"Servidor no disponible";}).catch(()=>$("status").textContent="Servidor iniciando; vuelve a cargar en unos segundos");
+fetch("/api/status").then(r=>{if(!r.ok)throw new Error("status");return r.json()}).then(d=>{$("status").textContent=d.status==="online"?"Servidor conectado · herramientas de audio listas":"Servidor no disponible";}).catch(()=>$("status").textContent="Servidor iniciando; vuelve a cargar en unos segundos");
 $("buildPrompt").addEventListener("click",()=>{
  const instrumental=$("instrumental").checked||$("voice").value.startsWith("Instrumental");
  const idea=$("idea").value.trim()||"una canción original con una historia memorable";
