@@ -89,7 +89,11 @@ const generationJobs = new Map();
 
 async function getAceClient() {
   if (!aceClientPromise) {
-    aceClientPromise = Client.connect(ACE_STEP_SOURCE, { events: ["status", "data"] });
+    const hfToken = process.env.HF_TOKEN || process.env.HUGGINGFACEHUB_API_TOKEN || process.env.HUGGING_FACE_HUB_TOKEN;
+    aceClientPromise = Client.connect(ACE_STEP_SOURCE, {
+      ...(hfToken ? { token: hfToken } : {}),
+      events: ["status", "data"]
+    });
     aceClientPromise.catch(() => { aceClientPromise = null; });
   }
   return aceClientPromise;
@@ -238,8 +242,13 @@ async function runAceGeneration(job, input) {
       if (typeof data[4] === "string") keyScale = data[4];
       if (typeof data[7] === "string") timeSignature = data[7];
     } catch (error) {
+      const detail = String(error?.message || error);
+      console.log("[ACE-STEP SAMPLE FALLBACK]", detail);
+      if (/zerogpu quota|exceeded.*quota|quota.*exceeded/i.test(detail)) {
+        throw new Error("La cuota de GPU de Hugging Face está agotada. " +
+          detail + " Agrega un token personal de Hugging Face en Render como HF_TOKEN para autenticar el acceso, o espera al reinicio de la cuota.");
+      }
       job.message = "No se pudo autogenerar la letra; intentaré crear la canción con tu descripción.";
-      console.log("[ACE-STEP SAMPLE FALLBACK]", error.message);
     }
   }
 
