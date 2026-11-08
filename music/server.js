@@ -123,4 +123,4 @@ app.use((err,_req,res,_next)=>{
 });
 
 const port=process.env.PORT||3000;
-app.listen(port,"0.0.0.0",()=>console.log("DJ SEBAS AI MUSIC activo en puerto "+port));
+app.listen(port,"0.0.0.0",()=>{ console.log("DJ SEBAS AI MUSIC activo en puerto "+port); setTimeout(()=>fetch("http://127.0.0.1:"+port+"/api/ace-step/schema").catch(error=>console.log("[ACE-STEP DISCOVERY ERROR]",error.message)),1500); });
