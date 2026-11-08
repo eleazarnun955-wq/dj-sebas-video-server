@@ -1,8 +1,19 @@
 {
   "name": "dj-sebas-mix-studio",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node server.js" },
-  "dependencies": { "express": "^4.21.2" }
+  "scripts": {
+    "start": "node server.js",
+    "android:init": "cap add android",
+    "android:sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
 }
