@@ -162,8 +162,8 @@ function buildAcePayload(client, endpointName, overrides = {}) {
   if (!endpoint) throw new Error("ACE-Step no publicó el endpoint " + endpointName);
   const config = client.config || {};
   const dependencies = config.dependencies || [];
-  const normalizedName = endpointName.replace(/^\\//, "");
-  const dependency = dependencies.find(d => String(d.api_name || "").replace(/^\\//, "") === normalizedName);
+  const normalizedName = endpointName.replace(/^\//, "");
+  const dependency = dependencies.find(d => String(d.api_name || "").replace(/^\//, "") === normalizedName);
   const componentMap = new Map((config.components || []).map(c => [c.id, c]));
   let visibleInputs = [];
   if (dependency) {
@@ -185,7 +185,7 @@ function buildAcePayload(client, endpointName, overrides = {}) {
     let override;
     if (Object.prototype.hasOwnProperty.call(overrides, name)) override = overrides[name];
     else if (Object.prototype.hasOwnProperty.call(overrides, label)) override = overrides[label];
-    else if (Object.prototype.hasOwnProperty.call(overrides, label.replace(/\\s+/g, "_"))) override = overrides[label.replace(/\\s+/g, "_")];
+    else if (Object.prototype.hasOwnProperty.call(overrides, label.replace(/\s+/g, "_"))) override = overrides[label.replace(/\s+/g, "_")];
     payload[name] = override === undefined ? value : override;
   });
   return payload;
@@ -193,7 +193,7 @@ function buildAcePayload(client, endpointName, overrides = {}) {
 
 function collectAudioCandidates(value, found = [], depth = 0) {
   if (depth > 8 || value == null) return found;
-  const audioPattern = /\\.(mp3|wav|flac|ogg|m4a|aac|opus)(?:[?#].*)?$/i;
+  const audioPattern = /\.(mp3|wav|flac|ogg|m4a|aac|opus)(?:[?#].*)?$/i;
   if (typeof value === "string") {
     if (audioPattern.test(value) || value.includes("/gradio_api/file=") || value.includes("/file=")) {
       found.push({ url: value });
@@ -354,7 +354,7 @@ async function runAceGeneration(job, input) {
     if (!response.ok) continue;
     const buffer = Buffer.from(await response.arrayBuffer());
     if (buffer.length < 1000) continue;
-    const match = (item.name || item.url).match(/\\.(mp3|wav|flac|ogg|m4a|aac|opus)(?:[?#].*)?$/i);
+    const match = (item.name || item.url).match(/\.(mp3|wav|flac|ogg|m4a|aac|opus)(?:[?#].*)?$/i);
     const ext = match ? match[1].toLowerCase() : (item.mime?.includes("mpeg") ? "mp3" : "wav");
     const filename = "DJ-SEBAS-" + job.id + (index ? "-" + (index + 1) : "") + "." + ext;
     await fs.writeFile(path.join(outDir, filename), buffer);
