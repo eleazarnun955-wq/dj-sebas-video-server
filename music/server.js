@@ -61,8 +61,24 @@ app.get("/api/ace-step/schema", async (_req, res) => {
         parameter_name: p.parameter_name || ""
       }))
     }));
-    console.log("[ACE-STEP DISCOVERY]", JSON.stringify({ paths, endpoints }));
-    res.json({ ok: true, title: spec.info?.title || "ACE-Step", paths, endpoints });
+    let generationInputs = [];
+    try {
+      const configResponse = await fetch(ACE_STEP_SPACE + "/config", {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (configResponse.ok) {
+        const config = await configResponse.json();
+        const dep = (config.dependencies || []).find(d => String(d.api_name || "").replace(/^\//, "") === "generation_wrapper");
+        const byId = new Map((config.components || []).map(c => [c.id, c]));
+        if (dep) generationInputs = (dep.inputs || []).map(id => {
+          const c = byId.get(id) || {};
+          return { id, type: c.type || "", label: c.props?.label || "", value: c.props?.value ?? null };
+        });
+      }
+    } catch {}
+    console.log("[ACE-STEP DISCOVERY]", JSON.stringify({ paths, endpoints: endpoints.filter(e => e.name.includes("generation_wrapper") || e.name.includes("create_sample")), generationInputs }));
+    res.json({ ok: true, title: spec.info?.title || "ACE-Step", paths, endpoints, generationInputs });
   } catch (error) {
     res.status(502).json({ ok: false, error: "No se pudo consultar la API pública de ACE-Step.", detail: error.message });
   }
