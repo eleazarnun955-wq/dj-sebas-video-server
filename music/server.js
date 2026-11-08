@@ -375,4 +375,21 @@ app.use((err,_req,res,_next)=>{
 });
 
 const port=process.env.PORT||3000;
-app.listen(port,"0.0.0.0",()=>{ console.log("DJ SEBAS AI MUSIC activo en puerto "+port); setTimeout(async()=>{ try { const client=await getAceClient(); const info=await client.view_api(); const endpoints=Object.keys(info.named_endpoints||{}); const relevant=endpoints.filter(x=>x.includes("generation_wrapper")||x.includes("create_sample")); console.log("[ACE-STEP CLIENT READY]",JSON.stringify(relevant)); for (const name of relevant) { const endpoint=info.named_endpoints[name]; const params=Array.isArray(endpoint.parameters)?endpoint.parameters:[]; console.log("[ACE-STEP API SCHEMA]",name,JSON.stringify(params.map((p,i)=>({i,name:p.parameter_name||p.name||p.api_name||null,label:p.label||null,type:p.type||p.python_type||p.type_hint||null})))); const dep=(client.config?.dependencies||[]).find(d=>String(d.api_name||"").replace(/^\\//,"")===name.replace(/^\\//,"")); const cmap=new Map((client.config?.components||[]).map(c=>[c.id,c])); console.log("[ACE-STEP INPUT MAP]",name,JSON.stringify((dep?.inputs||[]).map((id,i)=>{const c=cmap.get(id);return {i,id,type:c?.type||null,label:c?.props?.label||null};}))); } } catch(error) { console.log("[ACE-STEP CLIENT ERROR]",error.message); } },1500); });
+app.listen(port,"0.0.0.0",()=>{
+  console.log("DJ SEBAS AI MUSIC activo en puerto "+port);
+  setTimeout(async()=>{
+    try {
+      const client=await getAceClient();
+      const info=await client.view_api();
+      const endpoints=info.named_endpoints||{};
+      const names=Object.keys(endpoints).filter(name=>name.includes("generation_wrapper")||name.includes("create_sample"));
+      console.log("[ACE-STEP CLIENT READY]",JSON.stringify(names));
+      for (const name of names) console.log("[ACE-STEP API SCHEMA]",name,JSON.stringify(endpoints[name]));
+      const deps=(client.config?.dependencies||[]).filter(dep=>names.some(name=>String(dep.api_name||"").endsWith(name.replace(/^\\//,""))));
+      const components=(client.config?.components||[]).map(component=>({id:component.id,type:component.type,label:component.props?.label,value:component.props?.value}));
+      console.log("[ACE-STEP INPUT MAP]",JSON.stringify({dependencies:deps,components}));
+    } catch(error) {
+      console.log("[ACE-STEP CLIENT ERROR]",error.message);
+    }
+  },1500);
+});
