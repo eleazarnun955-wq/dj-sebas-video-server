@@ -14,3 +14,6 @@ Run `npm install` and `npm start` from this directory.
 
 ## Android APK
 GitHub Actions builds the debug APK. Download `DJ-SEBAS-MIX-STUDIO-APK` from the successful workflow run.
+
+
+Android build workflow updated to install explicit SDK platform and build-tools packages.
