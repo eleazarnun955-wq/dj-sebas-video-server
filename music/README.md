@@ -1,21 +1,16 @@
 # DJ SEBAS MIX STUDIO
 
-A local two-deck DJ mixer for Android and modern browsers. No AI, Hugging Face, OpenAI, API keys, or cloud audio processing.
+Android two-deck local DJ mixer. No AI, Hugging Face, OpenAI, API keys, or cloud audio processing.
 
 ## Features
-- Load two local audio files from the device (MP3, WAV, M4A, OGG, FLAC where supported by the browser).
-- Two independent decks with play/pause, cue-to-start, seek and mute.
-- Per-deck volume, low/mid/high EQ, and pitch/speed adjustment.
+- Two local audio decks with play/pause, cue, seek and mute.
+- Independent volume, low/mid/high EQ and pitch/speed.
 - Crossfader and simultaneous playback.
-- Record the master mix to a WebM audio file when supported by the browser.
-- Audio files are selected and processed locally in the device browser/WebView; they are not uploaded to the server.
+- Record the master mix to WebM where supported.
+- Local audio is processed in the device browser/WebView and is not uploaded.
 
-## Run the web version
-```sh
-cd music
-npm install
-npm start
-```
+## Web version
+Run `npm install` and `npm start` from this directory.
 
-## Build Android APK
-The GitHub Actions workflow `.github/workflows/music-android.yml` builds a debug APK for branch `dj-sebas-ai-music`. Download the artifact named `DJ-SEBAS-MIX-STUDIO-APK` from the completed workflow run.
+## Android APK
+GitHub Actions builds the debug APK. Download `DJ-SEBAS-MIX-STUDIO-APK` from the successful workflow run.
