@@ -41,11 +41,28 @@ app.get("/api/ace-step/schema", async (_req, res) => {
       upstreamStatus: response.status
     });
     const spec = await response.json();
+    let apiInfo = null;
+    try {
+      const infoResponse = await fetch(ACE_STEP_SPACE + "/gradio_api/info", {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (infoResponse.ok) apiInfo = await infoResponse.json();
+    } catch {}
     const paths = Object.entries(spec.paths || {}).map(([route, methods]) => ({
       route,
       methods: Object.keys(methods || {})
     }));
-    res.json({ ok: true, title: spec.info?.title || "ACE-Step", paths });
+    const endpoints = Object.entries(apiInfo?.named_endpoints || {}).map(([name, value]) => ({
+      name,
+      parameters: (value.parameters || []).map(p => ({
+        label: p.label || p.parameter_name || "",
+        type: p.type?.type || p.type || "",
+        parameter_name: p.parameter_name || ""
+      }))
+    }));
+    console.log("[ACE-STEP DISCOVERY]", JSON.stringify({ paths, endpoints }));
+    res.json({ ok: true, title: spec.info?.title || "ACE-Step", paths, endpoints });
   } catch (error) {
     res.status(502).json({ ok: false, error: "No se pudo consultar la API pública de ACE-Step.", detail: error.message });
   }
