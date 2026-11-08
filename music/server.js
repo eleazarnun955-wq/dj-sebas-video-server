@@ -119,7 +119,7 @@ function buildAcePayload(client, endpointName, overrides = {}) {
     ? (dependency.inputs || []).map(id => componentMap.get(id)).filter(c => c && String(c.type || "").toLowerCase() !== "state")
     : [];
 
-  const payload = {};
+  const payload = [];
   parameters.forEach((parameter, index) => {
     const component = visibleInputs[index];
     const props = component?.props || {};
