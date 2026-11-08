@@ -107,37 +107,68 @@ function buildAcePayload(client, endpointName, overrides = {}) {
   const apiInfo = client.__aceApiInfo;
   const endpoint = apiInfo?.named_endpoints?.[endpointName];
   if (!endpoint) throw new Error("ACE-Step no publicó el endpoint " + endpointName);
+  const parameters = Array.isArray(endpoint.parameters) ? endpoint.parameters : [];
+  if (!parameters.length) throw new Error("ACE-Step publicó el endpoint sin parámetros compatibles: " + endpointName);
+
   const config = client.config || {};
   const dependencies = config.dependencies || [];
   const normalizedName = endpointName.replace(/^\//, "");
   const dependency = dependencies.find(d => String(d.api_name || "").replace(/^\//, "") === normalizedName);
   const componentMap = new Map((config.components || []).map(c => [c.id, c]));
-  let visibleInputs = [];
-  if (dependency) {
-    visibleInputs = (dependency.inputs || [])
-      .map(id => componentMap.get(id))
-      .filter(c => c && String(c.type || "").toLowerCase() !== "state");
-  }
+  const visibleInputs = dependency
+    ? (dependency.inputs || []).map(id => componentMap.get(id)).filter(c => c && String(c.type || "").toLowerCase() !== "state")
+    : [];
 
   const payload = {};
-  endpoint.parameters.forEach((parameter, index) => {
+  parameters.forEach((parameter, index) => {
     const component = visibleInputs[index];
     const props = component?.props || {};
     let value = Object.prototype.hasOwnProperty.call(props, "value")
       ? props.value
-      : fallbackForType(parameter.type);
+      : fallbackForType(parameter.type || parameter.python_type || parameter.type_hint);
     if (value && typeof value === "object" && value.__type__ === "update") value = null;
-    const label = String(parameter.label || props.label || "").trim().toLowerCase();
-    const name = String(parameter.parameter_name || "").trim();
+
+    const label = String(parameter.label || parameter.parameter_name || parameter.name || props.label || "").trim().toLowerCase();
+    const normalizedLabel = label.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const name = String(parameter.parameter_name || parameter.name || parameter.api_name || normalizedLabel || ("param_" + (index + 1))).trim();
+    const candidates = [name, label, normalizedLabel, "param_" + (index + 1)];
     let override;
-    if (Object.prototype.hasOwnProperty.call(overrides, name)) override = overrides[name];
-    else if (Object.prototype.hasOwnProperty.call(overrides, label)) override = overrides[label];
-    else if (Object.prototype.hasOwnProperty.call(overrides, label.replace(/\s+/g, "_"))) override = overrides[label.replace(/\s+/g, "_")];
+    for (const key of candidates) {
+      if (key && Object.prototype.hasOwnProperty.call(overrides, key)) {
+        override = overrides[key];
+        break;
+      }
+    }
+
+    if (override === undefined) {
+      const semantic = [
+        [/caption|prompt|description|query/, ["param_4", "caption", "prompt", "query"]],
+        [/lyrics|lyric/, ["param_5", "lyrics"]],
+        [/bpm|tempo/, ["param_6", "bpm"]],
+        [/key.?scale|musical.?key/, ["param_7", "keyscale", "key_scale"]],
+        [/time.?signature|timesignature/, ["param_8", "timesignature", "time_signature"]],
+        [/vocal.?language|language/, ["param_9", "vocal_lang", "vocal_language"]],
+        [/duration|audio.?length/, ["param_15", "duration", "audio_duration"]],
+        [/batch.?size/, ["param_16", "batch_size"]],
+        [/task.?type|generation.?task/, ["param_23", "task_type"]],
+        [/inference.?steps/, ["param_10", "inference_steps"]],
+        [/guidance.?scale/, ["param_11", "guidance_scale"]],
+        [/random.?seed/, ["param_12", "use_random_seed"]],
+        [/seed$/, ["param_13", "seed"]],
+        [/audio.?format|format$/, ["param_30", "audio_format"]],
+        [/temperature|lm.?temperature/, ["param_31", "lm_temperature", "temperature"]]
+      ];
+      for (const [pattern, keys] of semantic) {
+        if (pattern.test(label)) {
+          const key = keys.find(k => Object.prototype.hasOwnProperty.call(overrides, k));
+          if (key) { override = overrides[key]; break; }
+        }
+      }
+    }
     payload[name] = override === undefined ? value : override;
   });
   return payload;
 }
-
 function collectAudioCandidates(value, found = [], depth = 0) {
   if (depth > 8 || value == null) return found;
   const audioPattern = /\.(mp3|wav|flac|ogg|m4a|aac|opus)(?:[?#].*)?$/i;
@@ -245,9 +276,10 @@ async function runAceGeneration(job, input) {
     param_44: false
   };
   const payload = buildAcePayload(client, "/generation_wrapper", generationOverrides);
-  if (apiInfo.named_endpoints?.["/generation_wrapper"]?.parameters?.length !== Object.keys(payload).length) {
-    throw new Error("La interfaz de ACE-Step cambió y no se pudieron preparar los parámetros de generación.");
+  if (!Object.keys(payload).length || Object.values(payload).some((value) => value === undefined)) {
+    throw new Error("ACE-Step devolvió una definición de generación incompleta. Actualiza el Space e inténtalo de nuevo.");
   }
+  console.log("[ACE-STEP PAYLOAD READY]", Object.keys(payload).length, Object.keys(payload).slice(0, 12));
 
   job.status = "queued";
   job.message = "Solicitud enviada a la cola gratuita de Hugging Face…";
