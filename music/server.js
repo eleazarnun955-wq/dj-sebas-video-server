@@ -385,7 +385,7 @@ app.listen(port,"0.0.0.0",()=>{
       const names=Object.keys(endpoints).filter(name=>name.includes("generation_wrapper")||name.includes("create_sample"));
       console.log("[ACE-STEP CLIENT READY]",JSON.stringify(names));
       for (const name of names) console.log("[ACE-STEP API SCHEMA]",name,JSON.stringify(endpoints[name]));
-      const deps=(client.config?.dependencies||[]).filter(dep=>names.some(name=>String(dep.api_name||"").endsWith(name.replace(/^\\//,""))));
+      const deps=(client.config?.dependencies||[]).filter(dep=>names.some(name=>String(dep.api_name||"").replace(/^\//,"")===name.replace(/^\//,"")));
       const components=(client.config?.components||[]).map(component=>({id:component.id,type:component.type,label:component.props?.label,value:component.props?.value}));
       console.log("[ACE-STEP INPUT MAP]",JSON.stringify({dependencies:deps,components}));
     } catch(error) {
