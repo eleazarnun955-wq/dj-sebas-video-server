@@ -1,0 +1,11 @@
+{
+  "appId": "com.produccionessebas.mixstudio",
+  "appName": "DJ SEBAS MIX STUDIO",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
