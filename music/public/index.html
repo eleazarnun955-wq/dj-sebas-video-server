@@ -32,6 +32,8 @@ main{width:min(980px,100%);margin:auto;padding:22px 15px 45px}.brand{text-align:
 <button class="go" id="buildPrompt" type="button">PREPARAR MI CANCIÓN</button>
 <label class="field" for="prompt">Descripción lista para el generador</label><textarea id="prompt" placeholder="Aquí aparecerá tu descripción musical…" readonly></textarea>
 <button class="secondary" id="copyPrompt" type="button">COPIAR DESCRIPCIÓN</button>
+<button class="go" id="generateSong" type="button">GENERAR CANCIÓN CON IA</button>
+<div class="msg" id="generationMessage" role="status" aria-live="polite"></div>
 <a class="launch" href="https://huggingface.co/spaces/ACE-Step/Ace-Step-v1.5" target="_blank" rel="noopener noreferrer">ABRIR GENERADOR ACE-STEP 1.5 ↗</a>
 <div class="notice">Importante: la generación de audio ocurre en el Space oficial de Hugging Face, no dentro de Render. Copia la descripción, abre ACE-Step y pégala en “Song Description”. La cuota gratuita depende de la disponibilidad de GPU y puede haber cola.</div>
 </div>
@@ -64,6 +66,43 @@ $("copyPrompt").addEventListener("click",async()=>{
  catch(e){$("prompt").focus();$("prompt").select();$("copyPrompt").textContent="Selecciona y copia el texto";setTimeout(()=>$("copyPrompt").textContent="COPIAR DESCRIPCIÓN",2200);}
 });
 ["trackA","trackB"].forEach((id,i)=>$(id).addEventListener("change",()=>{const f=$(id).files[0];$("name"+(i?"B":"A")).textContent=f?f.name:"Selecciona la canción "+(i+1);}));
+
+$("generateSong").addEventListener("click",async()=>{
+ const btn=$("generateSong"),msg=$("generationMessage");
+ if(!$("prompt").value.trim()) $("buildPrompt").click();
+ if(!$("prompt").value.trim()){msg.style.display="block";msg.textContent="Primero escribe la idea de tu canción.";return;}
+ btn.disabled=true;btn.textContent="ENVIANDO A ACE-STEP…";msg.style.display="block";msg.textContent="Conectando con el generador de música…";
+ const languageMap={"Español":"es","Inglés":"en","Portugués":"pt","Francés":"fr","Japonés":"ja","Otro":"unknown"};
+ try{
+  const response=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+   prompt:$("prompt").value,lyrics:$("lyrics").value,duration:Number($("duration").value),
+   language:languageMap[$("language").value]||"es",bpm:Number($("bpm").value)||0,
+   instrumental:$("instrumental").checked,title:$("idea").value.trim()||"DJ SEBAS AI MUSIC"
+  })});
+  const created=await response.json();
+  if(!response.ok) throw new Error(created.error||"No se pudo iniciar la generación.");
+  btn.textContent="GENERANDO TU CANCIÓN…";
+  const poll=async()=>{
+   const check=await fetch("/api/generate/"+encodeURIComponent(created.jobId));
+   const job=await check.json();
+   if(!check.ok) throw new Error(job.error||"No se pudo consultar el progreso.");
+   msg.textContent=job.message||"La IA está trabajando…";
+   if(job.status==="completed"){
+    msg.replaceChildren(document.createTextNode("¡Tu canción está lista!"));
+    for(const file of (job.files||[])){
+     const audio=document.createElement("audio");audio.controls=true;audio.src=file.url;audio.className="audio";
+     const link=document.createElement("a");link.href=file.url;link.download=file.filename;link.textContent="⬇ Descargar "+file.filename;link.className="download";
+     msg.append(document.createElement("br"),audio,document.createElement("br"),link);
+    }
+    if(job.lyrics){const lyricsTitle=document.createElement("p");lyricsTitle.textContent="Letra creada por la IA:";const lyricsText=document.createElement("pre");lyricsText.style.whiteSpace="pre-wrap";lyricsText.textContent=job.lyrics;msg.append(lyricsTitle,lyricsText);}
+    btn.textContent="GENERAR OTRA CANCIÓN";btn.disabled=false;return;
+   }
+   if(job.status==="error") throw new Error(job.message||"La generación falló.");
+   setTimeout(()=>poll().catch(err=>{msg.textContent="Error: "+err.message;btn.textContent="REINTENTAR GENERACIÓN";btn.disabled=false;}),4000);
+  };
+  await poll();
+ }catch(err){msg.textContent="Error: "+err.message;btn.textContent="REINTENTAR GENERACIÓN";btn.disabled=false;}
+});
 $("blend").addEventListener("input",()=>$("blendValue").textContent=$("blend").value+"%");
 $("mode").addEventListener("change",()=>{const enabled=$("mode").value==="overlay";$("blend").disabled=!enabled;$("blendValue").style.opacity=enabled?"1":".45";});
 $("mixForm").addEventListener("submit",async e=>{
