@@ -55,6 +55,12 @@ main{width:min(1050px,100%);margin:auto;padding:20px 14px 40px}.brand{text-align
 <div class="crossEnds"><span>← SOLO A</span><span>MEZCLA</span><span>SOLO B →</span></div>
 </div>
 <div class="actions"><button class="btn main" id="playBoth">▶▶ REPRODUCIR AMBAS</button><button class="btn" id="stopBoth">■ DETENER TODO</button></div>
+<div class="cross" style="margin-top:12px">
+<label for="autoFade"><span>⚡ MASHUP AUTOMÁTICO</span><span id="fadeLabel">20 segundos</span></label>
+<input id="autoFade" type="range" min="5" max="60" step="5" value="20">
+<div class="muted">Inicia la canción A y prepara la B para entrar al final. La mezcladora hace una transición gradual entre ambas y graba la salida completa.</div>
+<div class="actions"><button class="btn main" id="autoMash">⚡ CREAR MASHUP AUTOMÁTICO</button><button class="btn" id="cancelMash">CANCELAR MASHUP</button></div>
+</div>
 <div class="actions"><button class="btn main" id="record">● GRABAR MEZCLA</button><button class="btn" id="stopRecord" disabled>■ TERMINAR Y GUARDAR</button></div>
 <div class="message" id="message" role="status" aria-live="polite">Carga una canción en cada deck para comenzar. Puedes reproducirlas por separado o juntas.</div>
 <p class="hint">La grabación se guarda como archivo WebM de audio. Para que el audio salga en la grabación, inicia la reproducción desde esta mezcladora. La reproducción simultánea, ecualizador y crossfader funcionan en el navegador del teléfono.</p>
@@ -95,6 +101,42 @@ function loadDeck(k,file){
 $("crossfader").addEventListener("input",()=>{const f=Number($("crossfader").value);$("crossLabel").textContent=f<45?"Deck A":f>55?"Deck B":"Centro";setDeckGain("A");setDeckGain("B")});
 $("playBoth").addEventListener("click",async()=>{const loaded=["A","B"].filter(k=>decks[k].audio.src);if(!loaded.length){say("Carga al menos una canción.");return}await audioInit();if(ctx.state==="suspended")await ctx.resume();await Promise.all(loaded.map(k=>decks[k].audio.play().catch(()=>{})));loaded.forEach(k=>$("play"+k).textContent="Ⅱ Pausa");say("Reproduciendo "+(loaded.length===2?"ambas canciones":"la canción cargada")+". Mueve el crossfader para mezclarlas.")});
 $("stopBoth").addEventListener("click",()=>{["A","B"].forEach(k=>{decks[k].audio.pause();decks[k].audio.currentTime=0;$("play"+k).textContent="▶ Play"});say("Reproducción detenida.")});
+
+let mashTimer=null,mashStarted=false;
+$("autoFade").addEventListener("input",()=>{$("fadeLabel").textContent=$("autoFade").value+" segundos"});
+function cancelMash(){if(mashTimer){clearInterval(mashTimer);mashTimer=null}mashStarted=false}
+$("cancelMash").addEventListener("click",()=>{cancelMash();say("Mashup automático cancelado. La reproducción actual continúa.")});
+$("autoMash").addEventListener("click",async()=>{
+ const a=decks.A.audio,b=decks.B.audio;
+ if(!a.src||!b.src){say("Para el mashup automático carga una canción en Deck A y otra en Deck B.");return}
+ if(!Number.isFinite(a.duration)||!Number.isFinite(b.duration)||a.duration<=0||b.duration<=0){say("Espera a que ambas canciones terminen de cargar y vuelve a intentarlo.");return}
+ await audioInit();if(ctx.state==="suspended")await ctx.resume();cancelMash();
+ const fade=Number($("autoFade").value);
+ a.pause();b.pause();a.currentTime=0;b.currentTime=0;
+ $("crossfader").value=0;setDeckGain("A");setDeckGain("B");
+ const started=await a.play().then(()=>true).catch(()=>false);
+ if(!started){say("No se pudo iniciar la canción A. Revisa el formato del archivo.");return}
+ $("playA").textContent="Ⅱ Pausa";$("playB").textContent="▶ Play";
+ const transitionAt=Math.max(0,a.duration-fade);
+ mashStarted=false;
+ mashTimer=setInterval(async()=>{
+   if(!mashStarted&&a.currentTime>=transitionAt){
+     mashStarted=true;
+     try{b.currentTime=0;await b.play();$("playB").textContent="Ⅱ Pausa"}catch(e){cancelMash();say("No se pudo iniciar la canción B: "+e.message);return}
+     say("¡Mashup en marcha! Transición automática de "+fade+" segundos.");
+   }
+   if(mashStarted){
+     const progress=Math.min(1,Math.max(0,(a.currentTime-transitionAt)/fade));
+     $("crossfader").value=String(Math.round(progress*100));
+     $("crossLabel").textContent="Transición "+Math.round(progress*100)+"%";
+     setDeckGain("A");setDeckGain("B");
+     if(progress>=1){a.pause();$("playA").textContent="▶ Play";cancelMash();say("Transición terminada. Ahora suena la canción B.");}
+   }
+   if(a.ended&&!mashStarted){cancelMash();say("La canción A terminó antes de iniciar la transición.");}
+ },100);
+ say("Mashup preparado: la canción B entrará automáticamente durante los últimos "+fade+" segundos de A.");
+});
+
 $("record").addEventListener("click",async()=>{
  if(!decks.A.audio.src&&!decks.B.audio.src){say("Carga al menos una canción antes de grabar.");return}
  await audioInit();if(ctx.state==="suspended")await ctx.resume();
