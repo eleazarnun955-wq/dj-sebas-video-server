@@ -13,11 +13,6 @@ Android two-deck local DJ mixer. No AI, Hugging Face, OpenAI, API keys, or cloud
 Run `npm install` and `npm start` from this directory.
 
 ## Android APK
-GitHub Actions builds the debug APK. Download `DJ-SEBAS-MIX-STUDIO-APK` from the successful workflow run.
+GitHub Actions builds the debug APK and publishes it as a public GitHub Release download. Open the repository Releases page and download `app-debug.apk`.
 
-
-Android build workflow updated to install explicit SDK platform and build-tools packages.
-
-APK build workflow now installs Android SDK packages directly through sdkmanager.
-
-Use the preinstalled Android SDK command-line tools path for hosted builds.
+Android build workflow installs explicit SDK platform and build-tools packages using the hosted Android SDK command-line tools.
