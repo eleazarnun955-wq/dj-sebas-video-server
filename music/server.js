@@ -67,7 +67,7 @@ app.post("/api/mashup", upload.fields([{name:"trackA",maxCount:1},{name:"trackB"
     if(mode==="sequential") {
       await runFfmpeg(["-y","-i",pa,"-i",pb,"-filter_complex","[0:a]aresample=44100,asetpts=PTS-STARTPTS[a0];[1:a]aresample=44100,asetpts=PTS-STARTPTS[a1];[a0][a1]concat=n=2:v=0:a=1, loudnorm=I=-16:TP=-1.5:LRA=11[out]","-map","[out]","-codec:a","libmp3lame","-b:a","192k",dest]);
     } else {
-      const blend=Math.max(0,Math.min(1,Number(req.body.blend)||0.5));
+      const blendValue=Number(req.body.blend); const blend=Number.isFinite(blendValue)?Math.max(0,Math.min(1,blendValue)):0.5;
       await runFfmpeg(["-y","-i",pa,"-i",pb,"-filter_complex",`[0:a]volume=${(1-blend).toFixed(2)},aresample=44100[a0];[1:a]volume=${blend.toFixed(2)},aresample=44100[a1];[a0][a1]amix=inputs=2:duration=longest:dropout_transition=3:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11[out]`,"-map","[out]","-codec:a","libmp3lame","-b:a","192k",dest]);
     }
     res.json({ok:true,url:"/downloads/"+job+".mp3",filename:"DJ-SEBAS-MASHUP.mp3",mode});
