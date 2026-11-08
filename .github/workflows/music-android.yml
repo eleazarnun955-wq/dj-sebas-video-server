@@ -7,9 +7,10 @@ on:
       - dj-sebas-ai-music
     paths:
       - "music/**"
+      - ".github/workflows/music-android.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android:
@@ -47,10 +48,17 @@ jobs:
           chmod +x android/gradlew
           cd android
           ./gradlew assembleDebug
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: DJ-SEBAS-MIX-STUDIO-APK
           path: music/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+      - name: Publish public APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dj-sebas-mix-studio-v1.0.${{ github.run_number }}
+          name: DJ SEBAS MIX STUDIO v1.0.${{ github.run_number }}
+          generate_release_notes: true
+          files: music/android/app/build/outputs/apk/debug/app-debug.apk
