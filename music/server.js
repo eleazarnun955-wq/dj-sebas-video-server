@@ -229,7 +229,7 @@ async function runAceGeneration(job, input) {
         top_p: 1,
         debug: false
       });
-      const sample = await client.predict("/handle_create_sample_wrapper", ...samplePayload);
+      const sample = await client.predict("/handle_create_sample_wrapper", samplePayload);
       const data = sample?.data || [];
       if (typeof data[0] === "string" && data[0].trim()) caption = data[0];
       if (typeof data[1] === "string" && data[1].trim()) lyrics = data[1];
@@ -283,7 +283,7 @@ async function runAceGeneration(job, input) {
 
   job.status = "queued";
   job.message = "Solicitud enviada a la cola gratuita de Hugging Face…";
-  const submission = client.submit("/generation_wrapper", ...payload);
+  const submission = client.submit("/generation_wrapper", payload);
   let lastData = null;
   for await (const message of submission) {
     if (message.type === "status") {
