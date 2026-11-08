@@ -285,20 +285,46 @@ async function runAceGeneration(job, input) {
   job.message = "Solicitud enviada a la cola gratuita de Hugging Face…";
   const submission = client.submit("/generation_wrapper", payload);
   let lastData = null;
+  let terminalStatus = null;
+  let eventCount = 0;
   for await (const message of submission) {
+    eventCount += 1;
     if (message.type === "status") {
+      terminalStatus = message;
+      console.log("[ACE-STEP STATUS]", JSON.stringify({
+        stage: message.stage, success: message.success, code: message.code,
+        message: message.message, position: message.position
+      }));
       if (message.stage === "pending") job.status = "queued";
       else if (message.stage === "generating") job.status = "generating";
+      else if (message.stage === "error" || message.success === false) {
+        const detail = [message.message, message.code].filter(Boolean).join(" | ");
+        throw new Error("ACE-Step reportó un error durante la generación" + (detail ? ": " + detail : "."));
+      }
       job.message = message.message || (message.stage === "pending" ? "Esperando turno en Hugging Face…" : "Generando tu canción…");
       if (Number.isFinite(message.position)) job.queuePosition = message.position;
     } else if (message.type === "data") {
       lastData = message.data;
+      const summary = Array.isArray(message.data)
+        ? message.data.map((item, index) => ({ index, type: item === null ? "null" : Array.isArray(item) ? "array" : typeof item, keys: item && typeof item === "object" && !Array.isArray(item) ? Object.keys(item).slice(0, 12) : undefined }))
+        : { type: typeof message.data, keys: message.data && typeof message.data === "object" ? Object.keys(message.data).slice(0, 20) : undefined };
+      console.log("[ACE-STEP DATA EVENT]", JSON.stringify(summary).slice(0, 3000));
       job.status = "generating";
       job.message = "La IA está componiendo y renderizando el audio…";
     }
   }
 
-  if (lastData == null) throw new Error("ACE-Step terminó sin devolver resultados de audio.");
+  if (lastData == null) {
+    console.log("[ACE-STEP EMPTY RESULT]", JSON.stringify({
+      eventCount,
+      terminalStatus: terminalStatus ? {
+        stage: terminalStatus.stage, success: terminalStatus.success,
+        code: terminalStatus.code, message: terminalStatus.message
+      } : null
+    }));
+    throw new Error("ACE-Step terminó sin devolver audio. " +
+      (terminalStatus?.message || terminalStatus?.code || "El Space no envió ningún evento de datos."));
+  }
   const candidates = collectAudioCandidates(lastData);
   const unique = [...new Map(candidates.map(item => [item.url, item])).values()];
   if (!unique.length) {
