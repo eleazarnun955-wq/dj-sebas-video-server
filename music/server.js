@@ -28,6 +28,29 @@ app.use(cors());
 app.use(express.static(path.join(root, "public")));
 app.use("/downloads", express.static(outDir, { fallthrough: false, maxAge: "1h" }));
 
+const ACE_STEP_SPACE = "https://ace-step-ace-step-v1-5.hf.space";
+
+app.get("/api/ace-step/schema", async (_req, res) => {
+  try {
+    const response = await fetch(ACE_STEP_SPACE + "/gradio_api/openapi.json", {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) return res.status(502).json({
+      ok: false, error: "ACE-Step no entregó su especificación de API.",
+      upstreamStatus: response.status
+    });
+    const spec = await response.json();
+    const paths = Object.entries(spec.paths || {}).map(([route, methods]) => ({
+      route,
+      methods: Object.keys(methods || {})
+    }));
+    res.json({ ok: true, title: spec.info?.title || "ACE-Step", paths });
+  } catch (error) {
+    res.status(502).json({ ok: false, error: "No se pudo consultar la API pública de ACE-Step.", detail: error.message });
+  }
+});
+
 app.get("/api/status", (_req, res) => res.json({
   status: "online",
   app: "DJ SEBAS AI MUSIC",
