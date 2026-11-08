@@ -1,0 +1,54 @@
+name: Build DJ SEBAS MIX STUDIO APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "music/**"
+      - ".github/workflows/music-android.yml"
+    branches:
+      - dj-sebas-ai-music
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: music
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: music/package-lock.json
+      - name: Install dependencies
+        run: npm install
+      - name: Create Android project
+        run: npx cap add android
+      - name: Sync app assets
+        run: npx cap sync android
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Build installable APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DJ-SEBAS-MIX-STUDIO-APK
+          path: music/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
