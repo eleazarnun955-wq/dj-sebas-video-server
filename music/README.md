@@ -19,3 +19,5 @@ GitHub Actions builds the debug APK. Download `DJ-SEBAS-MIX-STUDIO-APK` from the
 Android build workflow updated to install explicit SDK platform and build-tools packages.
 
 APK build workflow now installs Android SDK packages directly through sdkmanager.
+
+Use the preinstalled Android SDK command-line tools path for hosted builds.
